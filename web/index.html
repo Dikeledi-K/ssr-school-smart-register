@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f7a56">
+<title>SSR – School Smart Register</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%231f7a56'/%3E%3Cpath d='M17 25l9 9 19-19' stroke='%23fff' stroke-width='6' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+:root{color-scheme:light;--bg:#f6f7f4;--card:#fff;--tx:#1d2a24;--mu:#66736c;--ac:#1f7a56;--acx:#fff;--bd:#dde3de;--ab:#fde8e6;--abt:#b3261e;--wn:#fff4d6;--wnt:#7a5600}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){color-scheme:dark;--bg:#121a16;--card:#1b2620;--tx:#e8efea;--mu:#9aaaa1;--ac:#3fb487;--acx:#08150f;--bd:#2c3a33;--ab:#3a1f1d;--abt:#ff8a80;--wn:#3a3115;--wnt:#ffd77a}}
+*{box-sizing:border-box}
+body{margin:0 auto;background:var(--bg);color:var(--tx);font:16px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;max-width:640px;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px))}
+a{color:var(--ac)}
+.tabs{display:flex;gap:6px;margin:10px 0 12px}.tabs button{flex:1;padding:10px 2px;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;font:inherit;font-size:14px;min-width:0}
+.tabs button.on{background:var(--ac);color:var(--acx);border-color:var(--ac);font-weight:600}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:12px}
+label{font-size:13px;color:var(--mu);display:block;margin-bottom:4px}
+input,select{font:inherit;padding:9px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);width:100%;min-width:0}
+.row{display:flex;gap:10px;margin-bottom:8px}.row>div{flex:1;min-width:0}
+.chips{display:flex;gap:6px;overflow-x:auto;padding:4px 0}
+.chip{flex:0 0 auto;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx);font:inherit;font-size:13px;text-align:center}
+.chip.on{background:var(--ac);color:var(--acx);border-color:var(--ac)}.chip.has{border-color:var(--ac);border-width:2px}.chip:disabled{opacity:.35}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+.stats b{display:block;font-size:26px}.stats span{font-size:12px;color:var(--mu)}.stats .a b{color:var(--abt)}
+.li{border-bottom:1px solid var(--bd)}.li.ab{background:var(--ab)}
+.l{display:flex;align-items:center;gap:10px;padding:10px 6px;cursor:pointer;color:var(--tx);font-size:15px;margin:0}
+.l input{width:24px;height:24px;flex:0 0 auto;accent-color:var(--abt);padding:0}
+.nm{flex:1;min-width:0}.gd{font-size:13px;color:var(--mu);width:54px}
+.ct{font-size:14px;color:var(--mu);padding:0 6px 10px}.ct a{display:inline-block;padding:6px 10px;margin:2px 4px 2px 0;border:1px solid var(--ac);border-radius:20px;font-weight:600;text-decoration:none}
+.btn{padding:10px 14px;border:0;border-radius:8px;background:var(--ac);color:var(--acx);font:inherit;font-weight:600;cursor:pointer}
+.btn.s{background:var(--bg);color:var(--tx);border:1px solid var(--bd)}.btn.d{background:var(--abt);color:#fff}
+.btn:disabled{opacity:.5}
+.mu{color:var(--mu);font-size:13px}.ok{color:var(--ac)}.bad{color:var(--abt)}
+.warn{background:var(--wn);color:var(--wnt);border-radius:8px;padding:8px 10px;font-size:14px;margin:8px 0}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{padding:6px;border-bottom:1px solid var(--bd);text-align:left;vertical-align:top}
+.pv{border:1px solid var(--bd);border-radius:10px;padding:8px;margin-bottom:8px}.pv.err{border-color:var(--abt)}
+.fl{display:block;position:relative;text-align:center;margin:0;color:var(--tx);overflow:hidden}
+.fl input{position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:0;cursor:pointer}
+.code{font-size:22px;letter-spacing:3px;font-weight:700}
+.cls{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:6px}
+.cls label{display:flex;gap:6px;align-items:center;border:1px solid var(--bd);border-radius:8px;padding:8px;color:var(--tx);font-size:14px;margin:0}
+.cls input{width:20px;height:20px;padding:0;accent-color:var(--ac)}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="config.js"></script>
+</head><body>
+<div id="hd"></div>
+<div class="tabs" id="tabs"></div>
+<div id="app"><div class="card">Loading…</div></div>
+<p class="mu" style="text-align:center;margin:18px 0">SSR – School Smart Register<br>© 2026 Matongoane Karabo Vincent. All rights reserved.</p>
+<script>
+"use strict";
+// ======================= basics =======================
+const CFG = window.SSR_CONFIG || {};
+const MN=["January","February","March","April","May","June","July","August","September","October","November","December"],DN=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const GR=["R",...Array.from({length:12},(_,i)=>String(i+1))], SECS=["A","B","C","D","E","F","G","H"];
+const LG=["English","Afrikaans","isiZulu","isiXhosa","isiNdebele","Sepedi","Sesotho","Setswana","siSwati","Tshivenda","Xitsonga"];
+const SUBJ=[...LG.flatMap(l=>[l+" Home Language",l+" First Additional Language"]),"South African Sign Language Home Language","Mathematics","Mathematical Literacy","Technical Mathematics","Natural Sciences","Natural Sciences and Technology","Social Sciences","Life Skills","Life Orientation","Technology","Economic and Management Sciences","Creative Arts","Physical Education","Physical Sciences","Technical Sciences","Life Sciences","Geography","History","Accounting","Business Studies","Economics","Consumer Studies","Hospitality Studies","Tourism","Agricultural Sciences","Agricultural Management Practices","Agricultural Technology","Information Technology","Computer Applications Technology","Engineering Graphics and Design","Civil Technology","Electrical Technology","Mechanical Technology","Dramatic Arts","Music","Visual Arts","Dance Studies","Design","Religion Studies","Coding and Robotics"];
+const GT={M:"Male",F:"Female"};
+const $=id=>document.getElementById(id), val=id=>($(id)?$(id).value:"").trim();
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const nm=l=>(l.surname+" "+l.name).trim();
+const byName=(a,b)=>a.surname.localeCompare(b.surname,undefined,{sensitivity:"base"})||a.name.localeCompare(b.name,undefined,{sensitivity:"base"});
+const keyOf=u=>String(u).toLowerCase().replace(/[^a-z0-9]+/g,"");
+const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const D=s=>new Date(s+"T00:00");
+const TODAY=()=>iso(new Date());
+function prevWeekday(d){while(d.getDay()==0||d.getDay()==6)d.setDate(d.getDate()-1);return d}
+function nextWeekday(d){while(d.getDay()==0||d.getDay()==6)d.setDate(d.getDate()+1);return d}
+const ymOf=s=>s.slice(0,7);
+const monthEnd=ym=>{const[y,m]=ym.split("-").map(Number);return iso(new Date(y,m,0))};
+const classSort=(a,b)=>a.localeCompare(b,undefined,{numeric:true});
+const gs=s=>`<option value="">Grade</option>`+GR.map(x=>`<option value="${x}" ${x==s?"selected":""}>Grade ${x}</option>`).join("");
+const cs=s=>`<option value="">Class</option>`+SECS.map(x=>`<option ${x==s?"selected":""}>${x}</option>`).join("");
+const splitCls=c=>{const m=String(c||"").match(/^(R|\d{1,2})([A-Z]*)$/);return m?[m[1],m[2]]:["",""]};
+const cleanPhone=s=>{let v=String(s||"").replace(/[^0-9+ ()-]/g,"").trim().slice(0,20);if(/^[6-8]\d{8}$/.test(v))v="0"+v;return v};
+const tel=n=>n?`<a href="tel:${esc(n.replace(/[^0-9+]/g,""))}">📞 ${esc(n)}</a>`:"";
+const logo=n=>`<svg width="${n}" height="${n}" viewBox="0 0 64 64" aria-label="SSR logo"><rect width="64" height="64" rx="14" fill="#1f7a56"/><path d="M17 25l9 9 19-19" stroke="#fff" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><text x="32" y="54" text-anchor="middle" font-size="17" font-weight="800" fill="#fff" font-family="system-ui,sans-serif">SSR</text></svg>`;
+const brand=()=>`<div style="display:flex;align-items:center;gap:10px">${logo(46)}<div><div style="font-size:20px;font-weight:700">SSR</div><div class="mu">School Smart Register</div></div></div>`;
+const store={get(k){try{return localStorage.getItem(k)}catch(e){return null}},set(k,v){try{v==null?localStorage.removeItem(k):localStorage.setItem(k,v)}catch(e){}}};
+
+// ======================= state =======================
+let sb=null, ME=null, NT="", NTok=false, CF=null, BUSY=false, RECOVERY=false;
+const U={screen:"login",tab:"daily",date:iso(prevWeekday(new Date())),cls:"",p:"1",setup:false,
+  atab:"teachers",te:null,login:null,acls:"",prev:null,prevSrc:"",led:null,addCls:false};
+const CACHE={}, PEND={};
+function need(k,fn){if(k in CACHE)return CACHE[k];if(!PEND[k]){PEND[k]=1;fn().then(v=>{CACHE[k]=v}).catch(e=>{CACHE[k]=null;NT=errMsg(e)}).finally(()=>{delete PEND[k];render()})}return undefined}
+const drop=pre=>{for(const k in CACHE)if(k.startsWith(pre))delete CACHE[k]};
+const note=(t,ok)=>{NT=t;NTok=!!ok;render();scrollTo(0,0)};
+const ask=(t,f)=>{CF={t,f};render();scrollTo(0,0)};
+function errMsg(e){const m=(e&&(e.message||e.error_description||e.error))||String(e);
+  if(/invalid login credentials/i.test(m))return "Wrong school code, username or password.";
+  if(/failed to fetch|network/i.test(m))return "No internet connection. Check your data or Wi-Fi and try again.";
+  if(/JWT|session/i.test(m))return "Your login has expired. Please log out and log in again.";
+  return m}
+async function q(p){const{data,error}=await p;if(error)throw error;return data}
+async function busy(fn){if(BUSY)return;BUSY=true;document.querySelectorAll("#app button").forEach(b=>b.disabled=true);try{await fn()}catch(e){NT=errMsg(e);NTok=false}finally{BUSY=false;render()}}
+async function callAdmin(body){const{data,error}=await sb.functions.invoke("ssr-admin",{body});
+  if(error){let m=error.message;try{const j=await error.context.json();if(j&&j.error)m=j.error}catch(_){}throw new Error(m)}
+  if(data&&data.error)throw new Error(data.error);return data}
+
+// ======================= auth =======================
+async function loadMe(){
+  const{data:{session}}=await sb.auth.getSession();
+  if(!session){ME=null;return}
+  const p=await q(sb.from("profiles").select("id,role,username,main_class,subject,period_classes,school_id").eq("id",session.user.id).maybeSingle());
+  if(!p){ME={id:session.user.id,email:session.user.email,noSchool:true};return}
+  const s=await q(sb.from("schools").select("id,name,code").eq("id",p.school_id).single());
+  ME={...p,period_classes:p.period_classes||[],email:session.user.email,school:s};
+  if(ME.role=="teacher"&&!ME.period_classes.includes(U.cls))U.cls=ME.period_classes[0]||"";
+}
+async function afterLogin(){await loadMe();
+  if(ME&&ME.noSchool){const pend=store.get("ssr_pending");if(pend){try{await finishSchool(JSON.parse(pend));return}catch(e){NT=errMsg(e)}}}
+  U.tab="daily";U.atab="teachers"}
+function login(){busy(async()=>{
+  const code=val("lc").toUpperCase().replace(/\s/g,""),un=val("lu"),pw=$("lw").value;
+  if(!un||!pw){NT="Enter your username and password.";return}
+  let email;
+  if(un.includes("@"))email=un.toLowerCase();
+  else{if(!code){NT="Enter the school code.";return}email=keyOf(un)+"."+code.toLowerCase()+"@"+CFG.TEACHER_DOMAIN}
+  if(code)store.set("ssr_code",code);
+  await q(sb.auth.signInWithPassword({email,password:pw}));
+  await afterLogin()})}
+function logout(){busy(async()=>{await sb.auth.signOut();ME=null;for(const k in CACHE)delete CACHE[k];U.screen="login";CF=null;U.te=null;U.prev=null})}
+function forgot(){busy(async()=>{const em=val("fe").toLowerCase();if(!/^\S+@\S+\.\S+$/.test(em)){NT="Enter the administrator email address.";return}
+  await q(sb.auth.resetPasswordForEmail(em,{redirectTo:location.href.split("#")[0].split("?")[0]}));
+  U.screen="login";NT="If that email belongs to an administrator, a reset link is on its way. Open it on this phone.";NTok=true})}
+function setNewPw(){busy(async()=>{const p=$("rp").value;if(p.length<6){NT="Use 6 or more characters.";return}if(p!==$("rp2").value){NT="The two passwords are not the same.";return}
+  await q(sb.auth.updateUser({password:p}));RECOVERY=false;history.replaceState(null,"",location.pathname);await afterLogin();NT="Password changed.";NTok=true})}
+function chPw(){busy(async()=>{const p=$("np").value;if(p.length<6){NT="Use 6 or more characters.";return}
+  await q(sb.auth.updateUser({password:p}));$("np").value="";NT="Password changed.";NTok=true})}
+function signup(){busy(async()=>{
+  const name=val("sn"),code=val("scd").toUpperCase().replace(/\s/g,""),admin=val("an"),email=val("ae").toLowerCase(),pw=$("ap").value;
+  if(name.length<2||!admin){NT="Enter the school name and your name.";return}
+  if(!/^[A-Z0-9]{3,12}$/.test(code)){NT="School code must be 3 to 12 letters or numbers (e.g. the EMIS number).";return}
+  if(!/^\S+@\S+\.\S+$/.test(email)){NT="Enter a valid email. It is used to reset your password.";return}
+  if(pw.length<6){NT="Password must be 6 or more characters.";return}
+  if(pw!==$("ap2").value){NT="The two passwords are not the same.";return}
+  const pend={name,code,admin};store.set("ssr_pending",JSON.stringify(pend));store.set("ssr_code",code);
+  const data=await q(sb.auth.signUp({email,password:pw,options:{emailRedirectTo:location.href.split("#")[0].split("?")[0]}}));
+  if(data.session){await finishSchool(pend)}
+  else{U.screen="login";NT="Check your email ("+email+") and tap the confirmation link. Then log in here with your email and password to finish creating the school.";NTok=true}})}
+async function finishSchool(p){await q(sb.rpc("create_school",{p_name:p.name,p_code:p.code,p_admin_name:p.admin}));store.set("ssr_pending",null);await loadMe();U.atab="teachers";
+  NT="School created. School code: "+p.code+". Now add your teachers.";NTok=true}
+function finishForm(){busy(async()=>{const p={name:val("sn"),code:val("scd").toUpperCase().replace(/\s/g,""),admin:val("an")};
+  if(p.name.length<2||!p.admin||!/^[A-Z0-9]{3,12}$/.test(p.code)){NT="Fill in all three. The code is 3 to 12 letters or numbers.";return}await finishSchool(p)})}
+
+// ======================= data loaders =======================
+const roster=c=>need("ros|"+c,async()=>(await q(sb.rpc("class_roster",{p_class:c}))).sort(byName));
+function monthAtt(kind,c,ym){return need(`att|${kind}|${c}|${ym}`,async()=>{
+  const rows=await q(sb.from("attendance").select("day,period,subject,absent,updated_at").eq("school_id",ME.school.id).eq("kind",kind).eq("class",c).gte("day",ym+"-01").lte("day",monthEnd(ym)));
+  const m={};rows.forEach(r=>m[r.day+"|"+r.period]=r);return m})}
+function monthMeals(c,ym){return need(`meal|${c}|${ym}`,async()=>{
+  const rows=await q(sb.from("meals").select("*").eq("school_id",ME.school.id).eq("class",c).gte("day",ym+"-01").lte("day",monthEnd(ym)));
+  const m={};rows.forEach(r=>m[r.day]=r);return m})}
+
+// ======================= teacher: registers =======================
+let chain=Promise.resolve();
+function saveAtt(kind,c,day,period,absent,subject){
+  const m=CACHE[`att|${kind}|${c}|${ymOf(day)}`];const k=day+"|"+period;
+  m[k]={...(m[k]||{}),day,period,subject:subject||"",absent:[...absent],saving:true};render();
+  chain=chain.then(async()=>{const r=await q(sb.from("attendance").upsert({school_id:ME.school.id,kind,class:c,day,period,subject:subject||"",absent:[...absent]},{onConflict:"school_id,kind,class,day,period"}).select("day,period,subject,absent,updated_at").single());
+    if(m[k]&&m[k].absent.length===absent.length&&m[k].absent.every((x,i)=>x===absent[i]))m[k]={...r};render()})
+   .catch(e=>{if(m[k])m[k].saving=false,m[k].failed=true;note("Not saved: "+errMsg(e))})}
+function tog(id){const per=U.tab=="period",c=per?U.cls:ME.main_class,kind=per?"P":"D",period=per?+U.p:0;
+  const m=CACHE[`att|${kind}|${c}|${ymOf(U.date)}`];if(!m)return;const cur=m[U.date+"|"+period];const s=new Set(cur?cur.absent:[]);
+  s.has(id)?s.delete(id):s.add(id);saveAtt(kind,c,U.date,period,[...s],per?ME.subject:"")}
+function saveDay(){const per=U.tab=="period",c=per?U.cls:ME.main_class,kind=per?"P":"D",period=per?+U.p:0;
+  const m=CACHE[`att|${kind}|${c}|${ymOf(U.date)}`];if(!m)return;const cur=m[U.date+"|"+period];saveAtt(kind,c,U.date,period,cur?cur.absent:[],per?ME.subject:"")}
+function setMonth(v){if(!v)return;const[y,m]=v.split("-").map(Number);let d=nextWeekday(new Date(y,m-1,1));if(iso(d)>TODAY())d=prevWeekday(new Date());U.date=iso(d);render()}
+const pick=d=>{U.date=d;render()};
+
+function nav(hasFn,extra){const d=D(U.date),y=d.getFullYear(),m=d.getMonth(),days=[],t=TODAY();
+  for(let i=1;i<=new Date(y,m+1,0).getDate();i++){const x=new Date(y,m,i);if(x.getDay()>0&&x.getDay()<6)days.push(x)}
+  return `<div class="card"><div class="row"><div><label>Month</label><input type="month" max="${t.slice(0,7)}" value="${y}-${String(m+1).padStart(2,"0")}" onchange="setMonth(this.value)"></div>${extra||""}</div>
+  <label>Monday to Friday · tap a day</label><div class="chips" id="chips">${days.map(x=>{const s=iso(x);return `<button class="chip ${s==U.date?"on":""} ${hasFn(s)?"has":""}" ${s>t?"disabled":""} onclick="pick('${s}')">${DN[x.getDay()]}<br><b>${x.getDate()}</b></button>`}).join("")}</div>
+  <p class="mu" style="margin:6px 0 0">A thick green border means the day is saved.</p></div>`}
+function stats(R,ab){const A=new Set(ab),c=(g,inA)=>R.filter(l=>l.gender==g&&A.has(l.id)==inA).length,em=R.filter(l=>l.gender=="M").length,ef=R.length-em;
+  return `<div class="card"><div class="stats"><div><b>${R.length}</b><span>Enrolled<br>${em} male · ${ef} female</span></div><div class="a"><b>${A.size}</b><span>Absent<br>${c("M",true)} male · ${c("F",true)} female</span></div><div><b>${R.length-A.size}</b><span>Present<br>${c("M",false)} male · ${c("F",false)} female</span></div></div></div>`}
+function summaryRows(m,R,per){const ids=new Set(R.map(l=>l.id));
+  return Object.values(m).filter(r=>r.updated_at||r.saving).map(r=>{const ab=r.absent.filter(id=>ids.has(id));const dt=D(r.day);
+    const g=x=>ab.filter(id=>(R.find(l=>l.id==id)||{}).gender==x).length,pm=R.filter(l=>l.gender=="M").length;
+    return {day:r.day,dt,period:r.period,subject:r.subject,ab,aM:g("M"),aF:g("F"),pM:pm-g("M"),pF:R.length-pm-g("F"),names:ab.map(id=>nm(R.find(l=>l.id==id))).join("; ")}})
+   .sort((a,b)=>a.day<b.day?-1:a.day>b.day?1:a.period-b.period)}
+
+function regV(per){
+  const c=per?U.cls:ME.main_class,kind=per?"P":"D",period=per?+U.p:0,ym=ymOf(U.date);
+  const R=roster(c),M=monthAtt(kind,c,ym);
+  if(R===undefined||M===undefined)return `<div class="card">Loading…</div>`;
+  if(R===null||M===null)return `<div class="card">Could not load. <button class="btn s" onclick="drop('ros|');drop('att|');render()">Try again</button></div>`;
+  const cur=M[U.date+"|"+period],ab=(cur?cur.absent:[]).filter(id=>R.some(l=>l.id==id)),d=D(U.date);
+  const extra=per?`<div><label>Class</label><select onchange="U.cls=this.value;render()">${ME.period_classes.map(x=>`<option value="${esc(x)}" ${U.cls==x?"selected":""}>Grade ${esc(x)}</option>`).join("")}</select></div><div style="flex:0 0 84px"><label>Period</label><select onchange="U.p=this.value;render()">${Array.from({length:15},(_,i)=>i+1).map(n=>`<option ${U.p==n?"selected":""}>${n}</option>`).join("")}</select></div>`:"";
+  let h=nav(s=>per?!!(M[s+"|"+period]&&M[s+"|"+period].updated_at):!!(M[s+"|0"]&&M[s+"|0"].updated_at),extra);
+  h+=`<div class="mu" style="margin:-4px 0 10px">${per?esc(ME.subject)+" · Grade "+esc(c)+" · Period "+period:"Daily register · Grade "+esc(c)} · ${DN[d.getDay()]} ${d.getDate()} ${MN[d.getMonth()]} ${d.getFullYear()}</div>`+stats(R,ab);
+  const st=!cur?`<div class="warn">Not saved yet. Tick absent learners, or tap <b>Save register</b> if everyone is present.</div>`
+    :cur.failed?`<div class="warn">Not saved. Check your connection and tap Save register.</div>`
+    :cur.saving?`<p class="mu">Saving…</p>`:`<p class="ok" style="font-size:14px">✔ Saved ${cur.updated_at?new Date(cur.updated_at).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}):""}${per&&cur.subject&&cur.subject!=ME.subject?" · recorded for "+esc(cur.subject):""}</p>`;
+  h+=`<div class="card"><div class="row" style="align-items:center;margin:0"><b style="flex:1">Learners · tick absent</b><button class="btn" style="flex:0;white-space:nowrap" onclick="saveDay()">Save register</button></div>${st}`;
+  h+=R.length?R.map((l,i)=>{const a=ab.includes(l.id);return `<div class="li ${a?"ab":""}"><label class="l"><span class="nm">${i+1}. ${esc(nm(l))}</span><span class="gd">${GT[l.gender]}</span><input type="checkbox" aria-label="Absent" ${a?"checked":""} onchange="tog('${l.id}')"></label></div>`}).join("")
+    :`<p class="mu">The administrator has not added learners for Grade ${esc(c)} yet.</p>`;
+  h+=`</div>`;
+  const rows=summaryRows(M,R,per);
+  const totAbs=rows.reduce((s,r)=>s+r.ab.length,0),poss=rows.length*R.length;
+  h+=`<div class="card"><b>${MN[d.getMonth()]} summary</b>${rows.length?`<p class="mu">${rows.length} ${per?"periods":"school days"} recorded · ${totAbs} absences · attendance ${poss?Math.round((poss-totAbs)/poss*100):100}%</p><div class="tw"><table><tr><th>Day</th><th>Abs.</th><th>Absent learners</th></tr>${rows.map(r=>`<tr onclick="U.date='${r.day}';${per?`U.p='${r.period}';`:""}render();scrollTo(0,0)" style="cursor:pointer"><td style="white-space:nowrap">${DN[r.dt.getDay()]} ${r.dt.getDate()}${per?" · P"+r.period:""}</td><td>${r.ab.length}</td><td>${r.ab.length?esc(r.names):"None"}</td></tr>`).join("")}</table></div><p class="mu">Tap a row to open it.</p>`:`<p class="mu">Nothing recorded this month yet.</p>`}
+   <div class="row" style="margin-top:10px"><div><button class="btn" style="width:100%" onclick="expReg('csv',${per})">Export CSV</button></div><div><button class="btn s" style="width:100%" onclick="expReg('pdf',${per})">Export PDF</button></div></div></div>`;
+  return h}
+
+function periodV(){
+  if(U.setup||!ME.subject||!ME.period_classes.length)return setupV();
+  if(!ME.period_classes.includes(U.cls))U.cls=ME.period_classes[0];
+  return `<div class="card" style="display:flex;align-items:center;gap:10px"><div style="flex:1"><b>${esc(ME.subject)}</b><div class="mu">${ME.period_classes.map(c=>"Grade "+esc(c)).join(", ")}</div></div><button class="btn s" onclick="U.setup=true;render()">Change</button></div>`+regV(true)}
+function setupV(){const C=need("classes",async()=>q(sb.rpc("school_classes")));
+  if(C===undefined)return `<div class="card">Loading…</div>`;
+  const list=(C||[]).filter(c=>c.learners>0);
+  return `<div class="card"><b>Period register setup</b><p class="mu">Choose the subject you teach and up to 10 classes you teach it to. Your own class, Grade ${esc(ME.main_class)}, is set by the administrator.</p>
+  <label>Subject taught</label><input id="sj" list="sl" placeholder="Type or pick a subject" value="${esc(ME.subject)}"><datalist id="sl">${SUBJ.map(s=>`<option value="${esc(s)}">`).join("")}</datalist>
+  <label style="margin-top:12px">Classes (up to 10)</label>${list.length?`<div class="cls">${list.map(c=>`<label><input type="checkbox" name="pc" value="${esc(c.class)}" ${ME.period_classes.includes(c.class)?"checked":""} onchange="if(document.querySelectorAll('input[name=pc]:checked').length>10){this.checked=false;note('You can choose up to 10 classes.')}">${esc(c.class)}</label>`).join("")}</div>`:`<p class="mu">No classes have learners yet. Ask the administrator to add them.</p>`}
+  <p style="margin-top:12px"><button class="btn" onclick="saveSetup()">Save</button> ${ME.subject&&ME.period_classes.length?`<button class="btn s" onclick="U.setup=false;render()">Cancel</button>`:""}</p></div>`}
+function saveSetup(){busy(async()=>{const sj=val("sj"),pc=[...document.querySelectorAll("input[name=pc]:checked")].map(x=>x.value);
+  if(!sj){NT="Choose the subject you teach.";return}if(!pc.length){NT="Choose at least one class.";return}
+  await q(sb.rpc("set_teaching",{p_subject:sj,p_classes:pc}));ME.subject=sj;ME.period_classes=pc.sort(classSort);U.cls=ME.period_classes[0];U.setup=false;drop("att|P|");drop("ros|");NT="Saved.";NTok=true})}
+
+// ======================= teacher: food =======================
+function foodV(){const c=ME.main_class,ym=ymOf(U.date),R=roster(c),A=monthAtt("D",c,ym),F=monthMeals(c,ym);
+  if(R===undefined||A===undefined||F===undefined)return `<div class="card">Loading…</div>`;
+  if(!R||!A||!F)return `<div class="card">Could not load. <button class="btn s" onclick="drop('');render()">Try again</button></div>`;
+  const ids=new Set(R.map(l=>l.id)),dr=A[U.date+"|0"],marked=!!(dr&&dr.updated_at),ab=marked?dr.absent.filter(x=>ids.has(x)).length:0,pr=R.length-ab,d=D(U.date);
+  const f=F[U.date]||{breakfast:false,main_meal:true,breakfast_served:null,main_served:null};
+  const DR=U.food&&U.food.day==U.date?U.food:(U.food={day:U.date,b:f.breakfast,m:f.main_meal,bs:f.breakfast_served,ms:f.main_served});
+  let h=nav(s=>!!F[s])+`<div class="card"><b>Food register · Grade ${esc(c)}</b><p class="mu">${DN[d.getDay()]} ${d.getDate()} ${MN[d.getMonth()]} ${d.getFullYear()} · linked to the daily register</p>`;
+  if(!marked)return h+`<div class="warn">The daily register for this day is not saved yet. Mark it first, then come back: meals required = learners present.</div><button class="btn" onclick="U.tab='daily';render()">Open daily register</button></div>`;
+  const sv=(t,k,on)=>{if(!on)return "";const v=DR[k];const ok=v!=null&&v!==""&&+v===pr;
+    return `<label style="margin-top:10px">${t} served</label><input type="number" min="0" inputmode="numeric" value="${v==null?"":v}" placeholder="Number served" oninput="U.food.${k}=this.value===''?null:+this.value;document.getElementById('st_${k}').outerHTML=fstat('${k}',${pr})">${fstat(k,pr)}`};
+  h+=`<div class="stats" style="margin:8px 0"><div><b>${R.length}</b><span>Enrolled</span></div><div class="a"><b>${ab}</b><span>Absent</span></div><div><b>${pr}</b><span>Present</span></div></div>
+   <label>Meals served today</label><div class="row"><div><label class="l" style="padding:6px 0"><input type="checkbox" style="accent-color:var(--ac)" ${DR.b?"checked":""} onchange="U.food.b=this.checked;render()">Breakfast</label></div><div><label class="l" style="padding:6px 0"><input type="checkbox" style="accent-color:var(--ac)" ${DR.m?"checked":""} onchange="U.food.m=this.checked;render()">Main meal</label></div></div>
+   <div class="mu">Meals required: ${DR.b?"Breakfast "+pr:""}${DR.b&&DR.m?" + ":""}${DR.m?"Main meal "+pr:""}${!DR.b&&!DR.m?"none":""} = <b>${((DR.b?1:0)+(DR.m?1:0))*pr}</b></div>
+   ${sv("Breakfast","bs",DR.b)}${sv("Main meal","ms",DR.m)}
+   <p><button class="btn" onclick="saveFood(${pr})">Save food register</button></p>${F[U.date]?`<p class="ok" style="font-size:14px">✔ Saved</p>`:""}</div>`;
+  const rows=Object.values(F).sort((a,b)=>a.day<b.day?-1:1).map(r=>{const x=A[r.day+"|0"],p=R.length-(x?x.absent.filter(i=>ids.has(i)).length:0);return{...r,dt:D(r.day),pr:p,ok:(!r.breakfast||r.breakfast_served===p)&&(!r.main_meal||r.main_served===p)}});
+  return h+`<div class="card"><b>${MN[d.getMonth()]} summary</b>${rows.length?`<div class="tw"><table><tr><th>Day</th><th>Present</th><th>Brkfst</th><th>Main</th><th></th></tr>${rows.map(r=>`<tr onclick="U.date='${r.day}';render();scrollTo(0,0)" style="cursor:pointer"><td>${DN[r.dt.getDay()]} ${r.dt.getDate()}</td><td>${r.pr}</td><td>${r.breakfast?r.breakfast_served??"?":"–"}</td><td>${r.main_meal?r.main_served??"?":"–"}</td><td class="${r.ok?"ok":"bad"}">${r.ok?"✔":"✖"}</td></tr>`).join("")}</table></div>`:`<p class="mu">No days saved yet this month.</p>`}
+   <div class="row" style="margin-top:10px"><div><button class="btn" style="width:100%" onclick="expFood('csv')">Export CSV</button></div><div><button class="btn s" style="width:100%" onclick="expFood('pdf')">Export PDF</button></div></div></div>`}
+function fstat(k,pr){const v=U.food[k];const ok=v!=null&&+v===pr;
+  return `<div id="st_${k}" class="${ok?"ok":"bad"}" style="font-size:13px;margin-top:4px">${v==null?"Enter the number served. It must be "+pr+".":ok?"✔ Matches the "+pr+" learners present":"⚠ Does not match: "+pr+" learners are present, "+v+" served"}</div>`}
+function saveFood(pr){const f=U.food;if(!f.b&&!f.m){note("Tick breakfast and/or main meal.");return}
+  if((f.b&&f.bs==null)||(f.m&&f.ms==null)){note("Enter the number served for each meal.");return}
+  const mism=(f.b&&f.bs!==pr)||(f.m&&f.ms!==pr);
+  const go=()=>busy(async()=>{const r=await q(sb.from("meals").upsert({school_id:ME.school.id,class:ME.main_class,day:U.date,breakfast:!!f.b,main_meal:!!f.m,breakfast_served:f.b?f.bs:null,main_served:f.m?f.ms:null},{onConflict:"school_id,class,day"}).select().single());
+    CACHE[`meal|${ME.main_class}|${ymOf(U.date)}`][U.date]=r;NT=mism?"Saved, but the number served does not match the learners present. It is marked ✖ in the summary.":"Food register saved.";NTok=!mism});
+  if(mism)ask(`Meals served do not match the ${pr} learners present. Save anyway?`,go);else go()}
+
+// ======================= teacher: parents & settings =======================
+function parentsV(){const R=need("contacts",async()=>(await q(sb.rpc("parent_contacts"))).sort(byName));
+  if(R===undefined)return `<div class="card">Loading…</div>`;
+  return `<div class="card"><b>Parents and guardians · Grade ${esc(ME.main_class)}</b><p class="mu">Your class only. Tap a number to call in an emergency.</p>${(R||[]).length?R.map((l,i)=>`<div class="li"><div class="l" style="cursor:default"><span class="nm">${i+1}. ${esc(nm(l))}</span><span class="gd">${GT[l.gender]}</span></div><div class="ct">${l.contact1||l.contact2?tel(l.contact1)+tel(l.contact2):"No contact numbers"}</div></div>`).join(""):`<p class="mu">No learners yet. The administrator adds them.</p>`}</div>`}
+const pwCard=()=>`<div class="card"><b>Change my password</b><label style="margin-top:8px">New password (6 or more characters)</label><input id="np" type="password" autocomplete="new-password"><p><button class="btn" onclick="chPw()">Change password</button></p></div>`;
+const meCard=()=>`<div class="card"><b>My account</b><p class="mu" style="margin:6px 0 0">School: ${esc(ME.school.name)} (code ${esc(ME.school.code)})<br>Username: ${esc(ME.username)}<br>Class: Grade ${esc(ME.main_class)} (set by the administrator)</p></div>`;
+
+// ======================= exports =======================
+function download(name,blob){const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)}
+function outFile(f,title,head,rows,wl){
+  if(!rows.length){note("Nothing recorded this month yet.");return}
+  const sub=[ME.school.name,ME.username,"Exported "+TODAY()].join(" | "),base=title.replace(/[^\w]+/g,"_");
+  if(f=="csv"){const qq=v=>'"'+String(v).replace(/"/g,'""')+'"';download(base+".csv",new Blob(["﻿"+[[title],[sub],[],head,...rows].map(r=>r.map(qq).join(",")).join("\r\n")],{type:"text/csv"}));return}
+  if(!window.jspdf){note("The PDF tool did not load. Check your connection or use CSV.");return}
+  const n=head.length,ws=head.map((_,i)=>i==n-1?wl:1),tot=ws.reduce((a,b)=>a+b),xs=[];let ac=14;ws.forEach(w=>{xs.push(ac);ac+=w/tot*269});const wd=ws[n-1]/tot*269-2;
+  const doc=new window.jspdf.jsPDF({orientation:"landscape"});doc.setFontSize(14);doc.text(title,14,16);doc.setFontSize(9);doc.text(sub,14,22);let yy=30;
+  const hdr=()=>{doc.setFontSize(8);doc.setFont(undefined,"bold");head.forEach((h,i)=>doc.text(doc.splitTextToSize(h,(i==n-1?wd:ws[i]/tot*269-2)),xs[i],yy));doc.setFont(undefined,"normal");yy+=8};hdr();
+  rows.forEach(r=>{const ln=doc.splitTextToSize(String(r[n-1]||"None"),wd),h=ln.length*4.2+2;if(yy+h>195){doc.addPage();yy=16;hdr()}
+    r.slice(0,-1).forEach((c,i)=>doc.text(String(c),xs[i],yy));doc.text(ln,xs[n-1],yy);yy+=h});
+  doc.setFontSize(8);doc.text("SSR – School Smart Register | © 2026 Matongoane Karabo Vincent",14,203);
+  download(base+".pdf",doc.output("blob"))}
+function expReg(f,per){const c=per?U.cls:ME.main_class,ym=ymOf(U.date),R=CACHE["ros|"+c],M=CACHE[`att|${per?"P":"D"}|${c}|${ym}`];if(!R||!M)return;
+  const d=D(U.date),title=per?`Grade ${c} ${ME.subject} period register - ${MN[d.getMonth()]} ${d.getFullYear()}`:`Grade ${c} daily register - ${MN[d.getMonth()]} ${d.getFullYear()}`;
+  // names only: contact numbers never leave the Parents tab
+  outFile(f,title,["Date","Day",...(per?["Period"]:[]),"Enrolled","Absent M","Absent F","Absent","Present M","Present F","Present","Absent learners"],
+    summaryRows(M,R,per).map(r=>[r.day,DN[r.dt.getDay()],...(per?[r.period]:[]),R.length,r.aM,r.aF,r.ab.length,r.pM,r.pF,R.length-r.ab.length,r.names]),4)}
+function expFood(f){const c=ME.main_class,ym=ymOf(U.date),R=CACHE["ros|"+c],A=CACHE[`att|D|${c}|${ym}`],F=CACHE[`meal|${c}|${ym}`];if(!R||!A||!F)return;const ids=new Set(R.map(l=>l.id)),d=D(U.date);
+  outFile(f,`Grade ${c} food register - ${MN[d.getMonth()]} ${d.getFullYear()}`,["Date","Day","Enrolled","Absent","Present","Breakfast required","Breakfast served","Main meal required","Main meal served","Status"],
+    Object.values(F).sort((a,b)=>a.day<b.day?-1:1).map(r=>{const x=A[r.day+"|0"],ab=x?x.absent.filter(i=>ids.has(i)).length:0,p=R.length-ab,ok=(!r.breakfast||r.breakfast_served===p)&&(!r.main_meal||r.main_served===p);
+      return [r.day,DN[D(r.day).getDay()],R.length,ab,p,r.breakfast?p:"-",r.breakfast?r.breakfast_served??"":"-",r.main_meal?p:"-",r.main_meal?r.main_served??"":"-",ok?"Matches":"Does not match"]}),1.4)}
+
+// ======================= administrator =======================
+function admTeachers(){
+  const T=need("teachers",async()=>(await q(sb.from("profiles").select("id,username,main_class,subject,period_classes").eq("school_id",ME.school.id).eq("role","teacher"))).sort((a,b)=>a.username.localeCompare(b.username)));
+  const t=TODAY(),wk=D(t).getDay()%6!=0,TD=wk?need("today|"+t,async()=>{const m={};(await q(sb.from("attendance").select("class,absent").eq("school_id",ME.school.id).eq("kind","D").eq("day",t))).forEach(r=>m[r.class]=r.absent.length);return m}):{};
+  if(T===undefined)return `<div class="card">Loading…</div>`;
+  let h="";
+  if(U.login)h+=`<div class="card" style="border-color:var(--ac)"><b>Give these login details to ${esc(U.login.username)}</b><p style="margin:8px 0">School code: <b>${esc(ME.school.code)}</b><br>Username: <b>${esc(U.login.username)}</b><br>Password: the one you just typed${U.login.pw?"":" (unchanged)"}</p><p class="mu">Teachers open this same web address on their phone. Tip: “Add to Home screen” makes it work like an app.</p><button class="btn s" onclick="U.login=null;render()">Done</button></div>`;
+  const e=U.te&&U.te!="new"?(T||[]).find(x=>x.id==U.te):null,[g,s]=splitCls(e?e.main_class:"");
+  if(U.te)h+=`<div class="card"><b>${e?"Edit, reassign or reset "+esc(e.username):"Add a teacher"}</b>
+    <label style="margin-top:8px">Username (surname and initials, e.g. Baloyi TK)</label><input id="tn" autocapitalize="words" value="${esc(e?e.username:"")}">
+    <label style="margin-top:8px">Class teacher for (fixed; the teacher cannot change it)</label><div class="row"><div><select id="tg">${gs(g)}</select></div><div><select id="ts">${cs(s)}</select></div></div>
+    <label>${e?"New password (leave blank to keep the current one)":"Password (6 or more characters)"}</label><input id="tp" type="text" autocomplete="off" autocapitalize="none" spellcheck="false">
+    <p><button class="btn" onclick="saveT()">${e?"Save changes":"Add teacher"}</button> <button class="btn s" onclick="U.te=null;render()">Cancel</button></p></div>`;
+  h+=`<div class="card"><div class="row" style="align-items:center"><b style="flex:1">Teachers (${(T||[]).length})</b>${U.te?"":`<button class="btn" style="flex:0;white-space:nowrap" onclick="U.te='new';U.login=null;render()">+ Add teacher</button>`}</div>`;
+  h+=(T||[]).length?T.map(u=>{const td=TD&&TD[u.main_class];return `<div class="li"><div class="l" style="cursor:default;flex-wrap:wrap"><div class="nm"><b>${esc(u.username)}</b><div class="mu">Grade ${esc(u.main_class)}${u.subject?" · "+esc(u.subject):""}${wk&&TD?` · today: ${td!=null?`<span class="ok">register saved, ${td} absent</span>`:`<span class="bad">register not saved</span>`}`:""}</div></div><button class="btn s" onclick="U.te='${u.id}';U.login=null;render();scrollTo(0,0)">Edit</button><button class="btn s" onclick="delT('${u.id}')">Delete</button></div></div>`}).join("")
+    :`<p class="mu">No teachers yet. Tap + Add teacher.</p>`;
+  return h+`</div>`}
+function saveT(){busy(async()=>{const username=val("tn").replace(/\s+/g," "),g=val("tg"),s=val("ts"),pw=$("tp").value,isNew=U.te=="new";
+  if(!username||!g||!s){NT="Enter the username and choose the grade and class.";return}
+  if(isNew&&pw.length<6){NT="Give a password of 6 or more characters.";return}
+  if(isNew)await callAdmin({action:"create",username,main_class:g+s,password:pw});
+  else await callAdmin({action:"update",id:U.te,username,main_class:g+s,password:pw||undefined});
+  U.login={username,pw:!!pw};U.te=null;drop("teachers");drop("classes")})}
+function delT(id){const u=(CACHE.teachers||[]).find(x=>x.id==id);if(!u)return;
+  ask(`Delete ${u.username}’s login? Learners and registers already saved stay.`,()=>busy(async()=>{await callAdmin({action:"delete",id});drop("teachers");NT=u.username+" deleted.";NTok=true}))}
+
+function admLearners(){
+  const C=need("classes",async()=>q(sb.rpc("school_classes")));
+  if(C===undefined)return `<div class="card">Loading…</div>`;
+  const known=[...new Set([...(C||[]).map(c=>c.class),...(U.acls?[U.acls]:[])])].sort(classSort);
+  if(!U.acls&&known.length)U.acls=known[0];
+  let h=`<div class="card"><b>Learners and parent numbers</b><p class="mu">Add each class once. Teachers can only tick absent learners and call parents; they cannot change this list.</p>
+   <div class="row" style="align-items:flex-end"><div><label>Class</label><select onchange="U.acls=this.value;U.prev=null;U.led=null;render()">${known.length?"":`<option value="">No classes yet</option>`}${known.map(c=>{const n=((C||[]).find(x=>x.class==c)||{}).learners||0;return `<option value="${esc(c)}" ${U.acls==c?"selected":""}>Grade ${esc(c)} (${n})</option>`}).join("")}</select></div><button class="btn s" style="flex:0;white-space:nowrap" onclick="U.addCls=!U.addCls;render()">New class</button></div>
+   ${U.addCls?`<div class="row"><div><select id="ag">${gs("")}</select></div><div><select id="as">${cs("")}</select></div><button class="btn" style="flex:0" onclick="openC()">Open</button></div>`:""}</div>`;
+  if(!U.acls)return h;
+  const c=U.acls,L=need("lrn|"+c,async()=>(await q(sb.from("learners").select("*").eq("school_id",ME.school.id).eq("class",c))).sort(byName));
+  if(L===undefined)return h+`<div class="card">Loading…</div>`;
+  if(U.prev)return h+previewV(L||[]);
+  h+=`<div class="card"><b>Add learners to Grade ${esc(c)}</b><div class="row" style="margin-top:8px"><div><button class="btn s" style="width:100%" onclick="startPrev([],'typing')">⌨ Type</button></div><div><label class="btn s fl">📄 CSV file<input type="file" accept=".csv,.txt,text/csv,text/plain,application/vnd.ms-excel" onchange="impCsv(this)"></label></div></div>
+   <div class="row"><div><label class="btn s fl">📷 Photo of list<input type="file" accept="image/*" capture="environment" onchange="impPhoto(this)"></label></div><div><label class="btn s fl">🖼 Upload image<input type="file" accept="image/*" onchange="impPhoto(this)"></label></div></div>
+   <p class="mu">CSV columns: Surname, Name, Gender (M/F), Contact 1, Contact 2. In Excel use File → Save As → CSV. You check every list before it is saved.</p></div>`;
+  const l0=U.led&&(L||[]).find(x=>x.id==U.led);
+  if(l0){const[g,s]=splitCls(l0.class);h+=`<div class="card"><b>Edit ${esc(nm(l0))}</b>${lfields(l0)}<label>Class</label><div class="row"><div><select id="eg">${gs(g)}</select></div><div><select id="es">${cs(s)}</select></div></div><p><button class="btn" onclick="saveL()">Save</button> <button class="btn s" onclick="U.led=null;render()">Cancel</button> <button class="btn d" style="float:right" onclick="delL('${l0.id}')">Delete</button></p></div>`}
+  const em=(L||[]).filter(l=>l.gender=="M").length;
+  h+=`<div class="card"><b>Grade ${esc(c)} · ${(L||[]).length} learners</b> <span class="mu">${em} male · ${(L||[]).length-em} female</span>`;
+  h+=(L||[]).length?L.map((l,i)=>`<div class="li"><div class="l" onclick="U.led='${l.id}';render();scrollTo(0,0)"><span class="nm">${i+1}. ${esc(nm(l))}</span><span class="gd">${GT[l.gender]}</span><span class="mu">Edit</span></div><div class="ct">${l.contact1||l.contact2?tel(l.contact1)+tel(l.contact2):"No contact numbers"}</div></div>`).join(""):`<p class="mu">No learners in this class yet.</p>`;
+  return h+`</div>`}
+const lfields=l=>`<div class="row" style="margin-top:8px"><div><label>Surname</label><input id="ls" value="${esc(l.surname)}"></div><div><label>Name</label><input id="lf" value="${esc(l.name)}"></div></div>
+  <div class="row"><div><label>Gender</label><select id="lg"><option value="">Gender</option><option value="M" ${l.gender=="M"?"selected":""}>Male</option><option value="F" ${l.gender=="F"?"selected":""}>Female</option></select></div></div>
+  <div class="row"><div><label>Parent/guardian 1</label><input id="l1" type="tel" inputmode="tel" value="${esc(l.contact1)}"></div><div><label>Parent/guardian 2</label><input id="l2" type="tel" inputmode="tel" value="${esc(l.contact2)}"></div></div>`;
+function openC(){const g=val("ag"),s=val("as");if(!g||!s){note("Choose the grade and class.");return}U.acls=g+s;U.addCls=false;U.prev=null;U.led=null;render()}
+function saveL(){busy(async()=>{const o={surname:val("ls"),name:val("lf"),gender:val("lg"),contact1:cleanPhone(val("l1")),contact2:cleanPhone(val("l2")),class:val("eg")+val("es")};
+  if(!o.surname||!o.name||!o.gender){NT="Enter the surname and name, and choose a gender.";return}if(!val("eg")||!val("es")){NT="Choose the grade and class.";return}
+  await q(sb.from("learners").update(o).eq("id",U.led));const moved=o.class!=U.acls;drop("lrn|");drop("classes");U.led=null;NT=moved?"Saved and moved to Grade "+o.class+".":"Saved.";NTok=true})}
+function delL(id){const l=(CACHE["lrn|"+U.acls]||[]).find(x=>x.id==id);if(!l)return;
+  ask(`Delete ${nm(l)} from Grade ${U.acls}? Their name will disappear from all registers.`,()=>busy(async()=>{await q(sb.from("learners").delete().eq("id",id));drop("lrn|");drop("classes");U.led=null}))}
+
+// ----- import preview (typing, CSV, photo all go through here) -----
+const blank=()=>({surname:"",name:"",gender:"",contact1:"",contact2:""});
+function startPrev(rows,src){U.prev=rows.length?rows:Array.from({length:5},blank);U.prevSrc=src;U.led=null;render();scrollTo(0,0)}
+function gNorm(g){g=String(g||"").trim();return /^(m|b)/i.test(g)?"M":/^(f|g)/i.test(g)?"F":""}
+function previewV(L){const P=U.prev,ex=new Set(L.map(l=>keyOf(nm(l))));
+  let h=`<div class="card"><b>Check before saving · Grade ${esc(U.acls)}</b><p class="mu">${U.prevSrc=="photo"?"Read from the photo. Check spelling, gender and numbers carefully.":U.prevSrc=="csv"?"Read from the CSV file.":"Type each learner. Empty rows are ignored."} Gender is required.</p>`;
+  h+=P.map((r,i)=>{const dup=r.surname&&ex.has(keyOf(r.surname+" "+r.name));return `<div class="pv ${r.err?"err":""}"><div class="row"><div><input placeholder="Surname" value="${esc(r.surname)}" oninput="U.prev[${i}].surname=this.value"></div><div><input placeholder="Name" value="${esc(r.name)}" oninput="U.prev[${i}].name=this.value"></div></div>
+    <div class="row"><div><select onchange="U.prev[${i}].gender=this.value"><option value="">Gender</option><option value="M" ${r.gender=="M"?"selected":""}>Male</option><option value="F" ${r.gender=="F"?"selected":""}>Female</option></select></div><div><input type="tel" placeholder="Parent 1" value="${esc(r.contact1)}" oninput="U.prev[${i}].contact1=this.value"></div><div><input type="tel" placeholder="Parent 2" value="${esc(r.contact2)}" oninput="U.prev[${i}].contact2=this.value"></div></div>
+    <div class="mu" style="display:flex;justify-content:space-between"><span class="bad">${r.err?esc(r.err):dup?"Already in this class: will be skipped":""}</span><a href="#" onclick="U.prev.splice(${i},1);render();return false">Remove</a></div></div>`}).join("");
+  return h+`<p><button class="btn s" onclick="U.prev.push(blank());render()">+ Row</button></p><p><button class="btn" onclick="savePrev()">Save to Grade ${esc(U.acls)}</button> <button class="btn s" onclick="U.prev=null;render()">Cancel</button></p></div>`}
+function savePrev(){busy(async()=>{const L=CACHE["lrn|"+U.acls]||[],ex=new Set(L.map(l=>keyOf(nm(l))));let bad=0;const out=[],seen=new Set();
+  U.prev.forEach(r=>{r.err="";r.surname=r.surname.trim();r.name=r.name.trim();if(!r.surname&&!r.name&&!r.contact1)return;
+    if(!r.surname||!r.name)r.err="Surname and name are both needed.";else if(!r.gender)r.err="Choose a gender.";
+    if(r.err){bad++;return}const k=keyOf(r.surname+" "+r.name);if(ex.has(k)||seen.has(k))return;seen.add(k);
+    out.push({school_id:ME.school.id,class:U.acls,surname:r.surname,name:r.name,gender:r.gender,contact1:cleanPhone(r.contact1),contact2:cleanPhone(r.contact2)})});
+  if(bad){NT=bad+" row(s) need fixing (marked in red).";return}
+  if(!out.length){NT="Nothing new to save.";return}
+  await q(sb.from("learners").insert(out));U.prev=null;drop("lrn|"+U.acls);drop("classes");NT=out.length+" learners saved to Grade "+U.acls+".";NTok=true})}
+async function impCsv(inp){const fl=inp.files[0];inp.value="";if(!fl)return;
+  const t=(await fl.text()).replace(/^﻿/,""),ls=t.split(/\r?\n/).filter(x=>x.trim());if(!ls.length){note("The file is empty.");return}
+  const dl=ls[0].includes("\t")?"\t":(ls[0].split(";").length>ls[0].split(",").length?";":",");
+  const sp=l=>{const o=[];let c="",qt=false;for(const ch of l){if(ch=='"')qt=!qt;else if(ch==dl&&!qt){o.push(c.trim());c=""}else c+=ch}o.push(c.trim());return o};
+  const rows=[];ls.forEach((l,i)=>{const r=sp(l);if(i==0&&/surname|last ?name|^name$/i.test(r[0]))return;if(!r[0])return;
+    rows.push({surname:r[0],name:r[1]||"",gender:gNorm(r[2]),contact1:cleanPhone(r[3]),contact2:cleanPhone(r[4])})});
+  if(!rows.length){note("No learners found in that file.");return}startPrev(rows,"csv")}
+async function shrink(f,px,qq){const b=await createImageBitmap(f),s=Math.min(1,px/Math.max(b.width,b.height)),cv=document.createElement("canvas");cv.width=Math.round(b.width*s);cv.height=Math.round(b.height*s);cv.getContext("2d").drawImage(b,0,0,cv.width,cv.height);return cv.toDataURL("image/jpeg",qq).split(",")[1]}
+function impPhoto(inp){const f=inp.files[0];inp.value="";if(!f)return;NT="Reading the photo… this can take up to a minute.";NTok=true;render();
+  busy(async()=>{const img=await shrink(f,1600,.85);const r=await callAdmin({action:"read_list",image:img,media_type:"image/jpeg"});
+    const rows=(r.learners||[]).filter(x=>x&&x.s).map(x=>({surname:String(x.s).trim(),name:String(x.f||"").trim(),gender:gNorm(x.g),contact1:cleanPhone(x.c1),contact2:cleanPhone(x.c2)}));
+    NT="";if(!rows.length){NT="No names found. Try a clearer, straight-on photo in good light.";return}startPrev(rows,"photo")})}
+
+function admSchool(){return `<div class="card"><b>School</b><label style="margin-top:8px">School name</label><div class="row"><div><input id="scn" value="${esc(ME.school.name)}"></div><button class="btn" style="flex:0" onclick="renameSchool()">Save</button></div>
+  <label>School code (teachers type this to log in; it cannot change)</label><div class="code">${esc(ME.school.code)}</div>
+  <p class="mu">App address for teachers: <a href="${esc(location.href.split("#")[0])}">${esc(location.href.split("#")[0])}</a></p></div>
+  <div class="card"><b>Administrator</b><p class="mu" style="margin:6px 0 0">${esc(ME.username)} · ${esc(ME.email)}<br>Log in with this email as the username. If you forget the password, use “Administrator forgot password?” on the login screen.</p></div>`+pwCard()}
+function renameSchool(){busy(async()=>{const n=val("scn");if(n.length<2){NT="Enter the school name.";return}await q(sb.from("schools").update({name:n}).eq("id",ME.school.id));ME.school.name=n;NT="School name saved.";NTok=true})}
+
+// ======================= screens =======================
+function loginV(){const lc=store.get("ssr_code")||"";
+  return `<div class="card"><b style="font-size:18px">Log in</b><label style="margin-top:10px">School code</label><input id="lc" autocapitalize="characters" autocomplete="organization" value="${esc(lc)}">
+  <label style="margin-top:8px">Username</label><input id="lu" autocomplete="username" autocapitalize="words" placeholder="e.g. Baloyi TK">
+  <label style="margin-top:8px">Password</label><input id="lw" type="password" autocomplete="current-password" onkeydown="if(event.key=='Enter')login()">
+  <p><button class="btn" style="width:100%" onclick="login()" ${BUSY?"disabled":""}>${BUSY?"Logging in…":"Log in"}</button></p>
+  <p class="mu">Teachers: forgot your password? Ask the administrator to reset it.<br>Administrators: type your email address as the username.</p>
+  <div class="row" style="margin-bottom:0"><div><a href="#" onclick="U.screen='forgot';render();return false">Administrator forgot password?</a></div><div style="text-align:right"><a href="#" onclick="U.screen='signup';render();return false">Register a new school</a></div></div></div>`}
+function signupV(){return `<div class="card"><b>Register a new school</b><p class="mu">For the principal or office administrator. You will add the teachers after this.</p>
+  <label>School name</label><input id="sn"><label style="margin-top:8px">School code (3–12 letters or numbers, e.g. the EMIS number)</label><input id="scd" autocapitalize="characters">
+  <label style="margin-top:8px">Your name (surname and initials)</label><input id="an"><label style="margin-top:8px">Your email (used to log in and to reset your password)</label><input id="ae" type="email" inputmode="email" autocomplete="email">
+  <label style="margin-top:8px">Password (6 or more characters)</label><input id="ap" type="password" autocomplete="new-password"><label style="margin-top:8px">Password again</label><input id="ap2" type="password" autocomplete="new-password">
+  <p><button class="btn" onclick="signup()" ${BUSY?"disabled":""}>Register school</button> <button class="btn s" onclick="U.screen='login';render()">Back</button></p></div>`}
+function finishV(){const p=JSON.parse(store.get("ssr_pending")||"{}");return `<div class="card"><b>Finish setting up your school</b><p class="mu">You are logged in as ${esc(ME.email)}.</p>
+  <label>School name</label><input id="sn" value="${esc(p.name||"")}"><label style="margin-top:8px">School code</label><input id="scd" autocapitalize="characters" value="${esc(p.code||"")}"><label style="margin-top:8px">Your name (surname and initials)</label><input id="an" value="${esc(p.admin||"")}">
+  <p><button class="btn" onclick="finishForm()">Create school</button> <button class="btn s" onclick="logout()">Log out</button></p></div>`}
+function forgotV(){return `<div class="card"><b>Reset administrator password</b><p class="mu">We will email you a link. Open it on this phone and choose a new password.</p><label>Administrator email</label><input id="fe" type="email" inputmode="email">
+  <p><button class="btn" onclick="forgot()">Send reset link</button> <button class="btn s" onclick="U.screen='login';render()">Back</button></p></div>`}
+function recoveryV(){return `<div class="card"><b>Choose a new password</b><label style="margin-top:8px">New password (6 or more characters)</label><input id="rp" type="password" autocomplete="new-password"><label style="margin-top:8px">New password again</label><input id="rp2" type="password" autocomplete="new-password"><p><button class="btn" onclick="setNewPw()">Save password</button></p></div>`}
+
+function render(){
+  const A=$("app"),T=$("tabs"),hd=$("hd");
+  let pre=NT?`<div class="card ${NTok?"ok":"bad"}" style="border-color:${NTok?"var(--ac)":"var(--abt)"}">${esc(NT)}</div>`:"";
+  if(CF)pre+=`<div class="card" style="border-color:var(--abt)"><b>${esc(CF.t)}</b><div class="row" style="margin:10px 0 0"><div><button class="btn" style="width:100%" onclick="const f=CF.f;CF=null;f();render()">Yes</button></div><div><button class="btn s" style="width:100%" onclick="CF=null;render()">Cancel</button></div></div></div>`;
+  T.innerHTML="";
+  if(!sb){hd.innerHTML=brand();A.innerHTML=`<div class="card bad">This copy of SSR is not connected to a database yet. Put the Supabase URL and anon key in config.js.</div>`;return}
+  if(RECOVERY){hd.innerHTML=brand();A.innerHTML=pre+recoveryV();return}
+  if(!ME){hd.innerHTML=brand();A.innerHTML=pre+(U.screen=="signup"?signupV():U.screen=="forgot"?forgotV():loginV());return}
+  if(ME.noSchool){hd.innerHTML=brand();A.innerHTML=pre+finishV();return}
+  const sx=(document.getElementById("chips")||{}).scrollLeft;
+  hd.innerHTML=`<div style="display:flex;align-items:center;gap:10px">${logo(46)}<div style="min-width:0"><div style="font-size:20px;font-weight:700">${esc(ME.school.name)}</div><div class="mu">${esc(ME.username)} · ${ME.role=="admin"?"Administrator":"Grade "+esc(ME.main_class)+" class teacher"} · <a href="#" onclick="logout();return false">Log out</a></div></div></div>`;
+  if(ME.role=="admin"){
+    T.innerHTML=[["teachers","Teachers"],["learners","Learners"],["school","School"]].map(t=>`<button class="${U.atab==t[0]?"on":""}" onclick="U.atab='${t[0]}';U.te=null;U.led=null;render()">${t[1]}</button>`).join("");
+    A.innerHTML=pre+(U.atab=="learners"?admLearners():U.atab=="school"?admSchool():admTeachers());
+  }else{
+    T.innerHTML=[["daily","Daily"],["period","Period"],["food","Food"],["con","Parents"],["me","⚙"]].map(t=>`<button class="${U.tab==t[0]?"on":""}" aria-label="${t[0]=="me"?"Settings":t[1]}" onclick="U.tab='${t[0]}';U.setup=false;U.food=null;render()">${t[1]}</button>`).join("");
+    A.innerHTML=pre+(U.tab=="period"?periodV():U.tab=="food"?foodV():U.tab=="con"?parentsV():U.tab=="me"?meCard()+pwCard():regV(false));
+  }
+  const ch=document.getElementById("chips");if(ch){if(sx!=null)ch.scrollLeft=sx;else{const on=ch.querySelector(".on");if(on)ch.scrollLeft=on.offsetLeft-ch.offsetLeft-ch.clientWidth/2+on.clientWidth/2}}
+}
+
+// ======================= start =======================
+// a message stays on screen until the next tap
+document.addEventListener("click",e=>{if(e.target.closest("button,a,.chip,.l,.tabs"))NT=""},true);
+(async function start(){
+  if(/type=recovery/.test(location.hash))RECOVERY=true;
+  if(window.supabase&&CFG.SUPABASE_URL&&!/YOUR-/.test(CFG.SUPABASE_URL+CFG.SUPABASE_ANON_KEY)){
+    sb=window.supabase.createClient(CFG.SUPABASE_URL,CFG.SUPABASE_ANON_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+    sb.auth.onAuthStateChange(ev=>{if(ev=="PASSWORD_RECOVERY"){RECOVERY=true;setTimeout(render,0)}});
+    try{await loadMe();if(ME&&ME.noSchool&&store.get("ssr_pending"))await afterLogin()}catch(e){NT=errMsg(e)}
+  }
+  render()})();
+</script></body></html>
