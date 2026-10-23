@@ -5,6 +5,7 @@
 -- =====================================================================
 
 -- ---------- clean slate (comment this block out after go-live) ----------
+drop table if exists public.sms_log cascade;
 drop table if exists public.meals cascade;
 drop table if exists public.attendance cascade;
 drop table if exists public.learners cascade;
@@ -17,6 +18,11 @@ create table public.schools (
   id          uuid primary key default gen_random_uuid(),
   name        text not null check (length(trim(name)) between 2 and 120),
   code        text not null unique check (code ~ '^[A-Z0-9]{3,12}$'),
+  -- SMS alerts to parents of absent learners (switched on by the administrator)
+  sms_enabled  boolean not null default false,
+  sms_both     boolean not null default false,   -- also text the second parent number
+  sms_template text not null default '{school}: {name} {surname} (Grade {class}) was marked absent today, {date}. Please contact the school.'
+               check (length(sms_template) between 10 and 300),
   created_at  timestamptz not null default now()
 );
 
@@ -76,6 +82,21 @@ create table public.meals (
   updated_at       timestamptz not null default now(),
   primary key (school_id, class, day)
 );
+
+-- One row per SMS sent (or failed) to a parent number. Written only by the ssr-admin function.
+create table public.sms_log (
+  id          uuid primary key default gen_random_uuid(),
+  school_id   uuid not null references public.schools(id) on delete cascade,
+  class       text not null,
+  learner_id  uuid,
+  day         date not null,
+  recipient   text not null,          -- never readable by teachers (column privilege below)
+  status      text not null check (status in ('sent','failed')),
+  error       text not null default '',
+  sent_by     uuid references auth.users(id) on delete set null,
+  sent_at     timestamptz not null default now()
+);
+create index sms_log_day_idx on public.sms_log (school_id, day, class);
 
 -- ---------- helper functions (who is logged in?) ----------
 create or replace function public.my_school() returns uuid
@@ -165,7 +186,11 @@ create policy att_update on public.attendance for update to authenticated
            (kind = 'D' and class = public.my_class())
         or (kind = 'P' and class = any(public.my_period_classes()))));
 
--- meals: teacher reads/writes own class; admin reads all
+-- admin may ADD registers (used only by "Import from the old demo"; existing rows are never overwritten)
+create policy att_admin_import on public.attendance for insert to authenticated
+  with check (school_id = public.my_school() and public.is_admin());
+
+-- meals: teacher reads/writes own class; admin reads all (and may add rows when importing)
 create policy meals_read on public.meals for select to authenticated
   using (school_id = public.my_school() and (public.is_admin() or class = public.my_class()));
 create policy meals_insert on public.meals for insert to authenticated
@@ -173,13 +198,21 @@ create policy meals_insert on public.meals for insert to authenticated
 create policy meals_update on public.meals for update to authenticated
   using (school_id = public.my_school() and class = public.my_class())
   with check (school_id = public.my_school() and class = public.my_class());
+create policy meals_admin_import on public.meals for insert to authenticated
+  with check (school_id = public.my_school() and public.is_admin());
+
+-- sms_log: admin reads the whole school, teacher reads own class (never the phone number)
+alter table public.sms_log enable row level security;
+create policy sms_read on public.sms_log for select to authenticated
+  using (school_id = public.my_school() and (public.is_admin() or class = public.my_class()));
 
 -- ---------- table privileges ----------
-revoke all on public.schools, public.profiles, public.learners, public.attendance, public.meals from anon, authenticated;
-grant all on public.schools, public.profiles, public.learners, public.attendance, public.meals to service_role;
+revoke all on public.schools, public.profiles, public.learners, public.attendance, public.meals, public.sms_log from anon, authenticated;
+grant all on public.schools, public.profiles, public.learners, public.attendance, public.meals, public.sms_log to service_role;
 grant usage on schema public to authenticated;
 grant select on public.schools to authenticated;
-grant update (name) on public.schools to authenticated;
+grant update (name, sms_enabled, sms_both, sms_template) on public.schools to authenticated;
+grant select (id, school_id, class, learner_id, day, status, error, sent_at) on public.sms_log to authenticated;
 grant select on public.profiles to authenticated;
 grant select, insert, update, delete on public.learners to authenticated;
 grant select, insert, update on public.attendance to authenticated;

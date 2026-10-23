@@ -14,7 +14,7 @@ a{color:var(--ac)}
 .tabs button.on{background:var(--ac);color:var(--acx);border-color:var(--ac);font-weight:600}
 .card{background:var(--card);border:1px solid var(--bd);border-radius:12px;padding:12px;margin-bottom:12px}
 label{font-size:13px;color:var(--mu);display:block;margin-bottom:4px}
-input,select{font:inherit;padding:9px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);width:100%;min-width:0}
+input,select,textarea{font:inherit;padding:9px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);width:100%;min-width:0}
 .row{display:flex;gap:10px;margin-bottom:8px}.row>div{flex:1;min-width:0}
 .chips{display:flex;gap:6px;overflow-x:auto;padding:4px 0}
 .chip{flex:0 0 auto;padding:8px 10px;border:1px solid var(--bd);border-radius:10px;background:var(--bg);color:var(--tx);font:inherit;font-size:13px;text-align:center}
@@ -106,7 +106,7 @@ async function loadMe(){
   if(!session){ME=null;return}
   const p=await q(sb.from("profiles").select("id,role,username,main_class,subject,period_classes,school_id").eq("id",session.user.id).maybeSingle());
   if(!p){ME={id:session.user.id,email:session.user.email,noSchool:true};return}
-  const s=await q(sb.from("schools").select("id,name,code").eq("id",p.school_id).single());
+  const s=await q(sb.from("schools").select("id,name,code,sms_enabled,sms_both,sms_template").eq("id",p.school_id).single());
   ME={...p,period_classes:p.period_classes||[],email:session.user.email,school:s};
   if(ME.role=="teacher"&&!ME.period_classes.includes(U.cls))U.cls=ME.period_classes[0]||"";
 }
@@ -200,11 +200,25 @@ function regV(per){
   h+=R.length?R.map((l,i)=>{const a=ab.includes(l.id);return `<div class="li ${a?"ab":""}"><label class="l"><span class="nm">${i+1}. ${esc(nm(l))}</span><span class="gd">${GT[l.gender]}</span><input type="checkbox" aria-label="Absent" ${a?"checked":""} onchange="tog('${l.id}')"></label></div>`}).join("")
     :`<p class="mu">The administrator has not added learners for Grade ${esc(c)} yet.</p>`;
   h+=`</div>`;
+  if(!per&&ME.school.sms_enabled&&U.date==TODAY()&&cur&&cur.updated_at&&!cur.saving&&ab.length)h+=smsCard(c,ab);
   const rows=summaryRows(M,R,per);
   const totAbs=rows.reduce((s,r)=>s+r.ab.length,0),poss=rows.length*R.length;
   h+=`<div class="card"><b>${MN[d.getMonth()]} summary</b>${rows.length?`<p class="mu">${rows.length} ${per?"periods":"school days"} recorded · ${totAbs} absences · attendance ${poss?Math.round((poss-totAbs)/poss*100):100}%</p><div class="tw"><table><tr><th>Day</th><th>Abs.</th><th>Absent learners</th></tr>${rows.map(r=>`<tr onclick="U.date='${r.day}';${per?`U.p='${r.period}';`:""}render();scrollTo(0,0)" style="cursor:pointer"><td style="white-space:nowrap">${DN[r.dt.getDay()]} ${r.dt.getDate()}${per?" · P"+r.period:""}</td><td>${r.ab.length}</td><td>${r.ab.length?esc(r.names):"None"}</td></tr>`).join("")}</table></div><p class="mu">Tap a row to open it.</p>`:`<p class="mu">Nothing recorded this month yet.</p>`}
    <div class="row" style="margin-top:10px"><div><button class="btn" style="width:100%" onclick="expReg('csv',${per})">Export CSV</button></div><div><button class="btn s" style="width:100%" onclick="expReg('pdf',${per})">Export PDF</button></div></div></div>`;
   return h}
+
+// ----- SMS to parents of absent learners (numbers stay on the server) -----
+function smsCard(c,ab){const L=need(`sms|${c}|${U.date}`,async()=>q(sb.from("sms_log").select("learner_id,status,error").eq("school_id",ME.school.id).eq("class",c).eq("day",U.date)));
+  if(L===undefined)return "";
+  const sent=new Set((L||[]).filter(x=>x.status=="sent").map(x=>x.learner_id)),
+    nonum=new Set((L||[]).filter(x=>x.error=="no_number"&&!sent.has(x.learner_id)).map(x=>x.learner_id)),
+    failed=new Set((L||[]).filter(x=>x.status=="failed"&&x.error!="no_number"&&!sent.has(x.learner_id)).map(x=>x.learner_id)),
+    todo=ab.filter(id=>!sent.has(id)&&!nonum.has(id)).length,nn=ab.filter(id=>nonum.has(id)).length,ns=ab.filter(id=>sent.has(id)).length;
+  return `<div class="card"><b>📱 SMS parents</b><p class="mu">${ab.length} absent today · ${ns} sent${nn?` · ${nn} with no parent number`:""}${failed.size?` · <span class="bad">${failed.size} failed, try again</span>`:""}</p>
+   ${todo?`<button class="btn" onclick="sendSms('${c}',${todo})">Send SMS to parents of ${todo} learner${todo>1?"s":""}</button>`:`<p class="ok" style="font-size:14px;margin:0">✔ Done. ${nn?"Learners with no parent number were skipped.":"Parents of all absent learners have been sent an SMS."}</p>`}</div>`}
+function sendSms(c,n){ask(`Send an SMS to the parents of ${n} absent learner${n>1?"s":""}? Make sure the register is correct first.`,()=>busy(async()=>{
+  const r=await callAdmin({action:"sms_absent",day:U.date,class:c});drop("sms|");
+  NT=`SMS sent: ${r.sent}`+(r.failed?` · failed: ${r.failed}`:"")+(r.no_number?` · no parent number: ${r.no_number}`:"")+(r.already?` · already sent: ${r.already}`:"");NTok=!r.failed}))}
 
 function periodV(){
   if(U.setup||!ME.subject||!ME.period_classes.length)return setupV();
@@ -281,8 +295,9 @@ function expFood(f){const c=ME.main_class,ym=ymOf(U.date),R=CACHE["ros|"+c],A=CA
       return [r.day,DN[D(r.day).getDay()],R.length,ab,p,r.breakfast?p:"-",r.breakfast?r.breakfast_served??"":"-",r.main_meal?p:"-",r.main_meal?r.main_served??"":"-",ok?"Matches":"Does not match"]}),1.4)}
 
 // ======================= administrator =======================
+const loadTeachers=async()=>(await q(sb.from("profiles").select("id,username,main_class,subject,period_classes").eq("school_id",ME.school.id).eq("role","teacher"))).sort((a,b)=>a.username.localeCompare(b.username));
 function admTeachers(){
-  const T=need("teachers",async()=>(await q(sb.from("profiles").select("id,username,main_class,subject,period_classes").eq("school_id",ME.school.id).eq("role","teacher"))).sort((a,b)=>a.username.localeCompare(b.username)));
+  const T=need("teachers",loadTeachers);
   const t=TODAY(),wk=D(t).getDay()%6!=0,TD=wk?need("today|"+t,async()=>{const m={};(await q(sb.from("attendance").select("class,absent").eq("school_id",ME.school.id).eq("kind","D").eq("day",t))).forEach(r=>m[r.class]=r.absent.length);return m}):{};
   if(T===undefined)return `<div class="card">Loading…</div>`;
   let h="";
@@ -368,10 +383,129 @@ function impPhoto(inp){const f=inp.files[0];inp.value="";if(!f)return;NT="Readin
     const rows=(r.learners||[]).filter(x=>x&&x.s).map(x=>({surname:String(x.s).trim(),name:String(x.f||"").trim(),gender:gNorm(x.g),contact1:cleanPhone(x.c1),contact2:cleanPhone(x.c2)}));
     NT="";if(!rows.length){NT="No names found. Try a clearer, straight-on photo in good light.";return}startPrev(rows,"photo")})}
 
-function admSchool(){return `<div class="card"><b>School</b><label style="margin-top:8px">School name</label><div class="row"><div><input id="scn" value="${esc(ME.school.name)}"></div><button class="btn" style="flex:0" onclick="renameSchool()">Save</button></div>
+function admSchool(){if(U.imp)return importV();return `<div class="card"><b>School</b><label style="margin-top:8px">School name</label><div class="row"><div><input id="scn" value="${esc(ME.school.name)}"></div><button class="btn" style="flex:0" onclick="renameSchool()">Save</button></div>
   <label>School code (teachers type this to log in; it cannot change)</label><div class="code">${esc(ME.school.code)}</div>
   <p class="mu">App address for teachers: <a href="${esc(location.href.split("#")[0])}">${esc(location.href.split("#")[0])}</a></p></div>
+  `+smsSettings()+`<div class="card"><b>Import from the old demo</b><p class="mu">Bring in a backup file (.json) made with “Download backup” in the old one-phone version: learners, daily and period registers, and food registers. Nothing already saved in the cloud is overwritten.</p><label class="btn s fl">📂 Choose backup file<input type="file" accept=".json,application/json" onchange="impDemo(this)"></label></div>
   <div class="card"><b>Administrator</b><p class="mu" style="margin:6px 0 0">${esc(ME.username)} · ${esc(ME.email)}<br>Log in with this email as the username. If you forget the password, use “Administrator forgot password?” on the login screen.</p></div>`+pwCard()}
+// ----- SMS settings -----
+const smsFill=(t,v)=>t.replaceAll("{school}",v.school).replaceAll("{name}",v.name).replaceAll("{surname}",v.surname).replaceAll("{class}",v.cls).replaceAll("{date}",v.date);
+const smsEx=t=>smsFill(t,{school:ME.school.name,name:"Thabo",surname:"Mokoena",cls:"5A",date:"Mon 26 Oct"});
+function smsSettings(){const s=ME.school;
+  return `<div class="card"><b>📱 SMS alerts to parents</b><p class="mu">When this is on, class teachers get a “Send SMS to parents” button on today's daily register. Teachers never see the numbers. Needs an SMS account; see the setup guide.</p>
+  <label class="l" style="padding:6px 0"><input type="checkbox" id="sme" style="accent-color:var(--ac)" ${s.sms_enabled?"checked":""}>Switch on SMS alerts</label>
+  <label class="l" style="padding:6px 0"><input type="checkbox" id="smb" style="accent-color:var(--ac)" ${s.sms_both?"checked":""}>Also send to the second parent number</label>
+  <label style="margin-top:8px">Message. These are filled in: {school} {name} {surname} {class} {date}</label><textarea id="smt" rows="4" maxlength="300" oninput="document.getElementById('smx').textContent=smsEx(this.value);document.getElementById('smn').textContent=smsEx(this.value).length">${esc(s.sms_template)}</textarea>
+  <p class="mu">Example (<span id="smn">${smsEx(s.sms_template).length}</span> characters): <span id="smx">${esc(smsEx(s.sms_template))}</span><br>Over 160 characters counts as 2 SMS credits per message.</p><button class="btn" onclick="saveSms()">Save SMS settings</button></div>`}
+function saveSms(){busy(async()=>{const o={sms_enabled:$("sme").checked,sms_both:$("smb").checked,sms_template:$("smt").value.trim()};
+  if(o.sms_template.length<10){NT="Write the SMS message (10 or more characters).";return}
+  await q(sb.from("schools").update(o).eq("id",ME.school.id));Object.assign(ME.school,o);NT="SMS settings saved"+(o.sms_enabled?". Teachers will see the SMS button on today's register.":".");NTok=true})}
+
+// ----- reports -----
+async function qAll(mk){let out=[],from=0;for(;;){const d=await q(mk().range(from,from+999));out=out.concat(d);if(d.length<1000)return out;from+=1000}}
+function admReports(){const sid=ME.school.id,ym=ymOf(U.date),a=ym+"-01",z=monthEnd(ym);
+  const L=need("rep|lrn",()=>qAll(()=>sb.from("learners").select("id,class,gender,surname,name").eq("school_id",sid).order("id")));
+  const T=need("teachers",loadTeachers);
+  const A=need("rep|att|"+ym,()=>qAll(()=>sb.from("attendance").select("class,day,absent").eq("school_id",sid).eq("kind","D").gte("day",a).lte("day",z).order("day").order("class")));
+  const F=need("rep|meal|"+ym,()=>qAll(()=>sb.from("meals").select("class,day,breakfast,main_meal,breakfast_served,main_served").eq("school_id",sid).gte("day",a).lte("day",z).order("day").order("class")));
+  const S=need("rep|sms|"+ym,()=>qAll(()=>sb.from("sms_log").select("status").eq("school_id",sid).gte("day",a).lte("day",z).order("id")));
+  const mode=U.rmode||"month";
+  let h=`<div class="tabs" style="margin-top:0"><button class="${mode=="month"?"on":""}" onclick="U.rmode='month';render()">Month</button><button class="${mode=="day"?"on":""}" onclick="U.rmode='day';render()">One day</button></div>`;
+  if([L,T,A,F,S].some(x=>x===undefined))return h+`<div class="card">Loading…</div>`;
+  if([L,T,A,F,S].some(x=>x===null))return h+`<div class="card">Could not load. <button class="btn s" onclick="drop('rep|');drop('teachers');render()">Try again</button></div>`;
+  const X=repData(L,T,A,F,S,ym);
+  return h+(mode=="day"?repDay(X):repMonth(X,ym))}
+function repData(L,T,A,F,S,ym){
+  const byC={},who={};L.forEach(l=>{(byC[l.class]=byC[l.class]||[]).push(l);who[l.id]=l});
+  const cls=[...new Set([...Object.keys(byC),...T.map(t=>t.main_class)])].sort(classSort);
+  const t=TODAY(),[y,m]=ym.split("-").map(Number);let expected=0;
+  for(let i=1;i<=new Date(y,m,0).getDate();i++){const x=new Date(y,m-1,i);if(x.getDay()%6&&iso(x)<=t)expected++}
+  const lAbs={},att={},meal={};
+  A.forEach(r=>{const ab=r.absent.filter(i=>who[i]&&who[i].class==r.class);att[r.class+"|"+r.day]=ab;ab.forEach(i=>lAbs[i]=(lAbs[i]||0)+1)});
+  F.forEach(r=>meal[r.class+"|"+r.day]=r);
+  const bad=(r,n)=>{const p=n-((att[r.class+"|"+r.day]||[]).length);return(r.breakfast&&r.breakfast_served!==p)||(r.main_meal&&r.main_served!==p)};
+  const rows=cls.map(c=>{const R=byC[c]||[],em=R.filter(l=>l.gender=="M").length,days=A.filter(r=>r.class==c),
+    abs=days.reduce((s,r)=>s+att[c+"|"+r.day].length,0),aM=days.reduce((s,r)=>s+att[c+"|"+r.day].filter(i=>who[i].gender=="M").length,0),
+    poss=days.length*R.length,fd=F.filter(r=>r.class==c);
+    return{c,teacher:(T.find(x=>x.main_class==c)||{}).username||"–",n:R.length,em,ef:R.length-em,days:days.length,missing:Math.max(0,expected-days.length),
+      abs,aM,aF:abs-aM,poss,pct:poss?Math.round((poss-abs)/poss*1000)/10:null,food:fd.length,mm:fd.filter(r=>bad(r,R.length)).length}});
+  const top=Object.entries(lAbs).map(([id,n])=>({l:who[id],n})).sort((a,b)=>b.n-a.n||byName(a.l,b.l));
+  return{T,A,S,byC,cls,rows,expected,att,meal,top,bad}}
+function repMonth(X,ym){const d=D(ym+"-01"),R=X.rows,tot=R.reduce((s,r)=>({n:s.n+r.n,em:s.em+r.em,abs:s.abs+r.abs,aM:s.aM+r.aM,poss:s.poss+r.poss,mm:s.mm+r.mm,missing:s.missing+r.missing}),{n:0,em:0,abs:0,aM:0,poss:0,mm:0,missing:0});
+  const sent=X.S.filter(s=>s.status=="sent").length;
+  let h=`<div class="card"><label>Month</label><input type="month" max="${TODAY().slice(0,7)}" value="${ym}" onchange="setMonth(this.value)"></div>
+  <div class="card"><b>${MN[d.getMonth()]} ${d.getFullYear()} · whole school</b><div class="stats" style="margin-top:8px"><div><b>${tot.n}</b><span>Learners<br>${tot.em} male · ${tot.n-tot.em} female</span></div><div><b>${tot.poss?Math.round((tot.poss-tot.abs)/tot.poss*1000)/10+"%":"–"}</b><span>Attendance</span></div><div class="a"><b>${tot.abs}</b><span>Absences<br>${tot.aM} male · ${tot.abs-tot.aM} female</span></div></div>
+  <p class="mu" style="margin-bottom:0">${X.expected} school days so far · ${tot.missing?`<span class="bad">${tot.missing} class registers not saved</span>`:"no registers missing"} · ${tot.mm?`<span class="bad">${tot.mm} food mismatches</span>`:"no food mismatches"}${sent?` · ${sent} SMS sent`:""}</p></div>`;
+  h+=`<div class="card"><b>By class</b><div class="tw"><table><tr><th>Class</th><th>Learners</th><th>Days saved</th><th>Absences</th><th>Att.</th><th>Food ✖</th></tr>${R.map(r=>`<tr><td><b>${esc(r.c)}</b><div class="mu">${esc(r.teacher)}</div></td><td>${r.n}<div class="mu">${r.em}M ${r.ef}F</div></td><td>${r.days}/${X.expected}${r.missing?`<div class="bad" style="font-size:12px">${r.missing} missing</div>`:""}</td><td>${r.abs}<div class="mu">${r.aM}M ${r.aF}F</div></td><td>${r.pct==null?"–":r.pct+"%"}</td><td class="${r.mm?"bad":""}">${r.food?r.mm:"–"}</td></tr>`).join("")}</table></div>
+   <div class="row" style="margin-top:10px"><div><button class="btn" style="width:100%" onclick="expRep('csv')">Export CSV</button></div><div><button class="btn s" style="width:100%" onclick="expRep('pdf')">Export PDF</button></div></div></div>`;
+  const top=X.top.slice(0,15);
+  h+=`<div class="card"><b>Most days absent</b><p class="mu">Learners to follow up with. Names only.</p>${top.length?`<div class="tw"><table><tr><th>Learner</th><th>Class</th><th>Days</th></tr>${top.map(x=>`<tr><td>${esc(nm(x.l))}</td><td>${esc(x.l.class)}</td><td>${x.n}</td></tr>`).join("")}</table></div>
+   <div class="row" style="margin-top:10px"><div><button class="btn s" style="width:100%" onclick="expTop('csv')">All absences CSV</button></div><div><button class="btn s" style="width:100%" onclick="expTop('pdf')">All absences PDF</button></div></div>`:`<p class="mu">No absences recorded this month.</p>`}</div>`;
+  return h}
+function repDay(X){const d=U.date,dt=D(d);
+  const rows=X.cls.map(c=>{const R=X.byC[c]||[],ab=X.att[c+"|"+d],f=X.meal[c+"|"+d],aM=ab?ab.filter(i=>(R.find(l=>l.id==i)||{}).gender=="M").length:0;
+    const fs=!f?"–":X.bad(f,R.length)?`<span class="bad">✖</span>`:`<span class="ok">✔</span>`;
+    return `<tr><td><b>${esc(c)}</b><div class="mu">${esc((X.T.find(t=>t.main_class==c)||{}).username||"–")}</div></td><td>${ab?`<span class="ok">✔ saved</span>`:`<span class="bad">not saved</span>`}</td><td>${ab?ab.length+`<div class="mu">${aM}M ${ab.length-aM}F</div>`:"–"}</td><td>${ab?R.length-ab.length:"–"}</td><td>${fs}</td></tr>`}).join("");
+  return nav(s=>X.A.some(r=>r.day==s))+`<div class="card"><b>${DN[dt.getDay()]} ${dt.getDate()} ${MN[dt.getMonth()]} · all classes</b><div class="tw"><table><tr><th>Class</th><th>Register</th><th>Absent</th><th>Present</th><th>Food</th></tr>${rows}</table></div></div>`}
+const repNow=()=>{const ym=ymOf(U.date);return repData(CACHE["rep|lrn"],CACHE.teachers,CACHE["rep|att|"+ym],CACHE["rep|meal|"+ym],CACHE["rep|sms|"+ym],ym)};
+function expRep(f){const X=repNow(),d=D(ymOf(U.date)+"-01");
+  outFile(f,`${ME.school.name} attendance report - ${MN[d.getMonth()]} ${d.getFullYear()}`,["Class","Class teacher","Learners","Male","Female","Days saved","Days missing","Absences","Absent M","Absent F","Attendance %","Food mismatches"],
+    X.rows.map(r=>[r.c,r.teacher,r.n,r.em,r.ef,r.days,r.missing,r.abs,r.aM,r.aF,r.pct==null?"":r.pct,r.food?r.mm:""]),1)}
+function expTop(f){const X=repNow(),d=D(ymOf(U.date)+"-01");
+  outFile(f,`${ME.school.name} learner absences - ${MN[d.getMonth()]} ${d.getFullYear()}`,["Class","Gender","Days absent","Learner"],X.top.map(x=>[x.l.class,GT[x.l.gender],x.n,nm(x.l)]),3)}
+
+// ----- import from the old one-phone demo -----
+const CLASS_RE=/^(R|[1-9]|1[0-2])[A-Z]{0,3}$/;
+async function impDemo(inp){const f=inp.files[0];inp.value="";if(!f)return;let S;
+  try{S=JSON.parse(await f.text())}catch(e){note("That file is not a valid backup.");return}
+  if(!S||typeof S.r!="object"||!S.r||typeof S.att!="object"){note("That file is not an SSR backup.");return}
+  const classes=Object.keys(S.r).map(c=>{const C=String(c).toUpperCase();return{cls:C,valid:CLASS_RE.test(C),learners:(S.r[c]||[]).filter(l=>l&&l.id).map(l=>({old:String(l.id),surname:String(l.s||"").trim(),name:String(l.f||"").trim(),gender:l.g=="M"||l.g=="F"?l.g:"",contact1:cleanPhone(l.c1),contact2:cleanPhone(l.c2)}))}}).filter(c=>c.learners.length).sort((a,b)=>classSort(a.cls,b.cls));
+  const T=(S.users||[]).filter(u=>u&&u.role=="teacher"&&u.main&&CLASS_RE.test(String(u.main).toUpperCase())).map(u=>({username:String(u.name||"").trim(),main:String(u.main).toUpperCase(),pick:true}));
+  const subj={};(S.users||[]).forEach(u=>(u&&u.pc||[]).forEach(c=>{if(u.subject)subj[String(c).toUpperCase()]=u.subject}));
+  const n=p=>Object.keys(S.att).filter(k=>k.startsWith(p)).length;
+  if(!classes.length){note("No learners found in that backup.");return}
+  U.imp={school:S.school||"",classes,teachers:T,att:S.att,food:S.food||{},subj,nD:n("D|"),nP:n("P|"),nF:Object.keys(S.food||{}).length};render();scrollTo(0,0)}
+function importV(){const I=U.imp,fix=[];I.classes.filter(c=>c.valid).forEach(c=>c.learners.forEach(l=>{if(!l.surname||!l.name||!l.gender)fix.push([c.cls,l])}));
+  const skip=I.classes.filter(c=>!c.valid);
+  let h=`<div class="card"><b>Import from the old demo${I.school?" · "+esc(I.school):""}</b><p class="mu">Check this, then tap Import. Learners already in the cloud (same class, surname and name) are matched, not added twice. Registers already saved in the cloud are kept.</p>
+   <div class="tw"><table><tr><th>Class</th><th>Learners</th></tr>${I.classes.map(c=>`<tr><td>${esc(c.cls)}</td><td>${c.learners.length}${c.valid?"":` <span class="bad">· skipped: not a valid class name</span>`}</td></tr>`).join("")}</table></div>
+   <p class="mu">In the file: ${I.nD} daily registers · ${I.nP} period registers · ${I.nF} food registers. Weekend and future dates are skipped.</p></div>`;
+  if(fix.length){const full=fix.filter(([,l])=>!l.name&&l.surname.includes(" ")).length;
+    h+=`<div class="card" style="border-color:var(--abt)"><b>${fix.length} learner${fix.length>1?"s need":" needs"} fixing</b><p class="mu">Every learner needs a surname, a name and a gender.</p>${full?`<p><button class="btn s" onclick="splitNames()">Split ${full} full names (first word = surname)</button></p>`:""}
+    ${fix.map(([c,l])=>`<div class="pv"><div class="mu">Grade ${esc(c)}</div><div class="row"><div><input placeholder="Surname" value="${esc(l.surname)}" oninput="impL('${esc(l.old)}').surname=this.value.trim()"></div><div><input placeholder="Name" value="${esc(l.name)}" oninput="impL('${esc(l.old)}').name=this.value.trim()"></div></div><select onchange="impL('${esc(l.old)}').gender=this.value"><option value="">Gender</option><option value="M" ${l.gender=="M"?"selected":""}>Male</option><option value="F" ${l.gender=="F"?"selected":""}>Female</option></select></div>`).join("")}</div>`}
+  if(I.teachers.length)h+=`<div class="card"><b>Teachers in the file</b><p class="mu">Passwords can't be copied from the old version. Tick the teachers to create now with a temporary password, and give it to them.</p>
+   ${I.teachers.map((t,i)=>`<label class="l" style="padding:6px 0"><input type="checkbox" style="accent-color:var(--ac)" ${t.pick?"checked":""} onchange="U.imp.teachers[${i}].pick=this.checked">${esc(t.username)} · Grade ${esc(t.main)}</label>`).join("")}
+   <label style="margin-top:8px">Temporary password for these teachers (6 or more characters)</label><input id="ipw" type="text" autocomplete="off" autocapitalize="none"></div>`;
+  return h+`<div class="card">${skip.length?`<p class="mu">${skip.length} class(es) will be skipped.</p>`:""}<button class="btn" onclick="runImport()">Import</button> <button class="btn s" onclick="U.imp=null;render()">Cancel</button></div>`}
+const impL=old=>{for(const c of U.imp.classes)for(const l of c.learners)if(l.old===old)return l;return{}};
+function splitNames(){U.imp.classes.forEach(c=>c.learners.forEach(l=>{if(!l.name&&l.surname.includes(" ")){const p=l.surname.split(/\s+/);l.surname=p.shift();l.name=p.join(" ")}}));render()}
+function runImport(){busy(async()=>{const I=U.imp,sid=ME.school.id,valid=I.classes.filter(c=>c.valid);
+  const bad=valid.reduce((s,c)=>s+c.learners.filter(l=>!l.surname||!l.name||!l.gender).length,0);
+  if(bad){NT=bad+" learners still need a surname, name or gender.";scrollTo(0,0);return}
+  const mkT=I.teachers.filter(t=>t.pick),pw=val("ipw");if(mkT.length&&pw.length<6){NT="Give a temporary password of 6 or more characters, or untick the teachers.";return}
+  // 1. learners: match those already in the cloud, add the rest
+  const key=(c,l)=>c+"|"+keyOf(l.surname+" "+l.name),map={},have={},pend={},ins=[];let matched=0;
+  (await qAll(()=>sb.from("learners").select("id,class,surname,name").eq("school_id",sid).order("id"))).forEach(l=>have[key(l.class,l)]=l.id);
+  for(const c of valid)for(const l of c.learners){const k=key(c.cls,l);if(have[k]){map[l.old]=have[k];matched++;continue}
+    if(pend[k]){pend[k].push(l.old);continue}pend[k]=[l.old];ins.push({school_id:sid,class:c.cls,surname:l.surname,name:l.name,gender:l.gender,contact1:l.contact1,contact2:l.contact2})}
+  for(let i=0;i<ins.length;i+=500)(await q(sb.from("learners").insert(ins.slice(i,i+500)).select("id,class,surname,name"))).forEach(g=>(pend[key(g.class,g)]||[]).forEach(o=>map[o]=g.id));
+  // 2. registers: never overwrite what is already in the cloud
+  const t=TODAY(),okDay=d=>/^\d{4}-\d{2}-\d{2}$/.test(d)&&d<=t&&D(d).getDay()%6!=0,vc=new Set(valid.map(c=>c.cls)),att=[],dAbs={};
+  for(const k in I.att){const p=k.split("|"),kind=p[0],c=String(p[1]||"").toUpperCase(),d=p[2],per=kind=="P"?+p[3]:0;
+    if(!(kind=="D"||kind=="P")||!vc.has(c)||!okDay(d)||(kind=="P"&&!(per>=1&&per<=15)))continue;
+    const ab=[...new Set((I.att[k]||[]).map(o=>map[o]).filter(Boolean))];if(kind=="D")dAbs[c+"|"+d]=ab.length;
+    att.push({school_id:sid,kind,class:c,day:d,period:per,subject:kind=="P"?(I.subj[c]||""):"",absent:ab})}
+  for(let i=0;i<att.length;i+=500)await q(sb.from("attendance").upsert(att.slice(i,i+500),{onConflict:"school_id,kind,class,day,period",ignoreDuplicates:true}));
+  const size={};valid.forEach(c=>size[c.cls]=new Set(c.learners.map(l=>map[l.old])).size);const meals=[];
+  for(const k in I.food){const p=k.split("|"),c=String(p[1]||"").toUpperCase(),d=p[2];if(!vc.has(c)||!okDay(d))continue;
+    const F={b:0,m:1,...I.food[k]},pr=size[c]-(dAbs[c+"|"+d]||0),num=v=>v==null||v===""?pr:Math.max(0,Math.round(+v)||0);
+    meals.push({school_id:sid,class:c,day:d,breakfast:!!F.b,main_meal:!!F.m,breakfast_served:F.b?num(F.bs):null,main_served:F.m?num(F.ms):null})}
+  for(let i=0;i<meals.length;i+=500)await q(sb.from("meals").upsert(meals.slice(i,i+500),{onConflict:"school_id,class,day",ignoreDuplicates:true}));
+  // 3. teachers
+  const terr=[];let tok=0;for(const x of mkT){try{await callAdmin({action:"create",username:x.username,main_class:x.main,password:pw});tok++}catch(e){terr.push(x.username+": "+errMsg(e))}}
+  U.imp=null;drop("");
+  NT=`Imported: ${ins.length} new learners${matched?` (${matched} already in the cloud)`:""}, ${att.length} registers, ${meals.length} food registers`+(mkT.length?`, ${tok} teachers created`:"")+"."+(terr.length?" Not created: "+terr.join("; "):"");NTok=!terr.length})}
+
 function renameSchool(){busy(async()=>{const n=val("scn");if(n.length<2){NT="Enter the school name.";return}await q(sb.from("schools").update({name:n}).eq("id",ME.school.id));ME.school.name=n;NT="School name saved.";NTok=true})}
 
 // ======================= screens =======================
@@ -406,8 +540,8 @@ function render(){
   const sx=(document.getElementById("chips")||{}).scrollLeft;
   hd.innerHTML=`<div style="display:flex;align-items:center;gap:10px">${logo(46)}<div style="min-width:0"><div style="font-size:20px;font-weight:700">${esc(ME.school.name)}</div><div class="mu">${esc(ME.username)} · ${ME.role=="admin"?"Administrator":"Grade "+esc(ME.main_class)+" class teacher"} · <a href="#" onclick="logout();return false">Log out</a></div></div></div>`;
   if(ME.role=="admin"){
-    T.innerHTML=[["teachers","Teachers"],["learners","Learners"],["school","School"]].map(t=>`<button class="${U.atab==t[0]?"on":""}" onclick="U.atab='${t[0]}';U.te=null;U.led=null;render()">${t[1]}</button>`).join("");
-    A.innerHTML=pre+(U.atab=="learners"?admLearners():U.atab=="school"?admSchool():admTeachers());
+    T.innerHTML=[["teachers","Teachers"],["learners","Learners"],["reports","Reports"],["school","School"]].map(t=>`<button class="${U.atab==t[0]?"on":""}" onclick="U.atab='${t[0]}';U.te=null;U.led=null;U.imp=null;render()">${t[1]}</button>`).join("");
+    A.innerHTML=pre+(U.atab=="learners"?admLearners():U.atab=="reports"?admReports():U.atab=="school"?admSchool():admTeachers());
   }else{
     T.innerHTML=[["daily","Daily"],["period","Period"],["food","Food"],["con","Parents"],["me","⚙"]].map(t=>`<button class="${U.tab==t[0]?"on":""}" aria-label="${t[0]=="me"?"Settings":t[1]}" onclick="U.tab='${t[0]}';U.setup=false;U.food=null;render()">${t[1]}</button>`).join("");
     A.innerHTML=pre+(U.tab=="period"?periodV():U.tab=="food"?foodV():U.tab=="con"?parentsV():U.tab=="me"?meCard()+pwCard():regV(false));

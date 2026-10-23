@@ -3,14 +3,14 @@
 A phone-friendly web app for daily, period, and food registers, for South African schools from Grade R to 12. All data is kept in Supabase, so any phone can log in. Every school sees only its own data.
 
 ```
-ssr/
+ssr-school-smart-register/
 ├── web/                      ← the app (upload this folder to any static host)
 │   ├── index.html
 │   ├── config.js             ← put your Supabase URL + anon key here
 │   └── learners_template.csv ← sample CSV for the administrator
 └── supabase/
     ├── schema.sql            ← database, security rules, functions (run once)
-    └── functions/ssr-admin/  ← admin actions: add/reassign/delete teachers, read photo lists
+    └── functions/ssr-admin/  ← add/reassign/delete teachers, read photo lists, send SMS alerts
         └── index.ts
 ```
 
@@ -39,6 +39,16 @@ supabase link --project-ref YOUR-PROJECT-REF
 supabase functions deploy ssr-admin
 ```
 
+**Optional: SMS alerts to parents.** Open an account with a South African bulk SMS provider and buy credits. Then add these under **Edge Functions → Secrets**:
+
+| Provider | Secrets |
+|---|---|
+| [BulkSMS](https://www.bulksms.com) | `SMS_PROVIDER` = `bulksms`, `BULKSMS_TOKEN_ID`, `BULKSMS_TOKEN_SECRET` (create an API token in your BulkSMS account) |
+| [SMSPortal](https://smsportal.com) | `SMS_PROVIDER` = `smsportal`, `SMSPORTAL_CLIENT_ID`, `SMSPORTAL_SECRET` (create a REST API key in your SMSPortal account) |
+| Trying it out | `SMS_PROVIDER` = `test`: nothing is sent, and messages appear in the function's logs |
+
+Then the administrator switches it on under **School → SMS alerts to parents**.
+
 **Optional: reading photos of paper class lists.** This needs an Anthropic API key (console.anthropic.com, paid per use; a class list costs a few cents). Add it under **Edge Functions → Secrets** as `ANTHROPIC_API_KEY`. If you skip this, the admin can still add learners by typing or by CSV, and the photo button explains that it isn't switched on.
 
 ### 4. Connect the app
@@ -61,17 +71,22 @@ Then go back to step 2 and set the Site URL and Redirect URL to this address.
 2. Confirm the email if asked, then log in. On the login screen, the administrator types their **email** as the username.
 3. **Teachers tab**: add each teacher. The username is surname + initials (e.g. *Baloyi TK*), with a fixed class (e.g. Grade 5A) and a password. The app shows the login details to hand over.
 4. **Learners tab**: pick or open a class, then add learners by **Type**, **CSV file**, or **Photo of list**. Every list is shown for checking before it's saved.
-5. Teachers open the same link and log in with **school code + username + password**. Tip: "Add to Home screen" makes it behave like an app.
+5. **Moving from the old one-phone demo?** In the old app, tap **Download backup**. In the new app go to **School → Import from the old demo** and choose that file. Learners, daily and period registers, and food registers come across. Teachers can be created at the same time with a temporary password, since old passwords can't be copied.
+6. Teachers open the same link and log in with **school code + username + password**. Tip: "Add to Home screen" makes it behave like an app.
 
 ## What each role can do
 | | Administrator | Teacher |
 |---|---|---|
 | Create school, add/reassign/delete teachers, reset teacher passwords | ✔ | ✖ |
 | Add, edit, move, delete learners | ✔ | ✖ |
-| Daily register (own class, Mon–Fri, no future days) | view only via "today" status | ✔ |
+| Daily register (own class, Mon–Fri, no future days) | view only (Reports) | ✔ |
 | Period register (chosen subject + up to 10 classes, periods 1–15) | | ✔ |
 | Food register (breakfast / main meal, must match learners present) | | ✔ |
 | Parent numbers | all classes | own class only, tap to call |
+| School reports: monthly attendance by class, missing registers, food mismatches, most-absent learners, any single day; CSV/PDF | ✔ | ✖ |
+| SMS alerts: switch on/off, write the message | ✔ | ✖ |
+| SMS parents of today's absent learners (button on daily register; numbers never shown) | | ✔ |
+| Import from the old demo's backup file | ✔ | ✖ |
 | Reset own password | by email link | ask the admin (or change it under ⚙ when logged in) |
 
 ## Rules and how they're enforced
@@ -83,6 +98,8 @@ These are enforced in the **database** (Row Level Security + functions), not onl
 - **Monday–Friday only**: the database rejects weekend dates. Periods are limited to 1–15.
 - **Names are sorted A–Z** (by surname, then name) everywhere.
 - **Usernames are unique per school** ("Baloyi T.K" and "baloyi tk" count as the same), and a class can have only one class teacher.
+- **SMS alerts** are sent by the server, so the teacher's phone never receives the numbers. They only go out for *today's* register, each parent number gets at most one SMS per learner per day, and the log of numbers is visible to nobody in the app.
+- **The import never overwrites** registers already saved in the cloud, and matches learners already there instead of adding them twice.
 - **Passwords** are stored hashed by Supabase Auth. They're never stored in the app or database tables.
 
 ## Things to know
@@ -90,4 +107,5 @@ These are enforced in the **database** (Row Level Security + functions), not onl
 - **Backups:** the free plan has no automatic backups. Use the Pro plan or export regularly (Database → Backups).
 - **POPIA:** the system holds minors' names and parents' phone numbers. Keep the admin password private and remove teachers who leave (Teachers → Delete). Their saved registers stay.
 - **Teacher logins:** behind the scenes, each teacher gets an internal address like `baloyitk.alp01@teachers.ssr.local`. It's never emailed and teachers never see it. That's why only the administrator can reset teacher passwords.
-- **Old demo data:** the earlier one-phone demo stored data on the phone only. Learners can be re-entered quickly by CSV or photo.
+- **SMS costs:** each message uses provider credits (a message over 160 characters uses 2). The School screen shows the length of the message.
+- **Reports** count attendance against the learners currently in each class. If a learner moves class or is deleted, their earlier absences drop out of the reports.
